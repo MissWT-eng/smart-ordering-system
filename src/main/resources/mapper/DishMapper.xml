@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.luwei.ordering.mapper.DishMapper">
+
+    <update id="updateDish">
+        UPDATE dish
+        SET dish_name = #{dishName},
+            dish_introduction = #{dishIntroduction},
+            price = #{price},
+            category = #{category}
+        WHERE dish_number = #{dishNumber}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE dish SET dish_status = #{dishStatus} WHERE dish_number = #{dishNumber}
+    </update>
+
+    <select id="countDishes" resultType="long">
+        SELECT COUNT(*) FROM dish
+    <where>
+        <if test="status != null and status != ''">
+            AND dish_status = #{status}
+        </if>
+        <if test="category != null and category != ''">
+            AND category = #{category}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (dish_name LIKE CONCAT('%', #{keyword}, '%')
+            OR dish_introduction LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </where>
+    </select>
+
+    <select id="queryDishesByPage" resultType="com.luwei.ordering.entity.DishEntity">
+        SELECT dish_number, dish_name, dish_status, dish_introduction, price, category
+        FROM dish
+        <where>
+            <if test="request.status != null and request.status != ''">
+                AND dish_status = #{request.status}
+            </if>
+            <if test="request.category != null and request.category != ''">
+                AND category = #{request.category}
+            </if>
+            <if test="request.keyword != null and request.keyword != ''">
+                AND (dish_name LIKE CONCAT('%', #{request.keyword}, '%')
+                OR dish_introduction LIKE CONCAT('%', #{request.keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY dish_number
+        LIMIT #{offset}, #{request.pageSize}
+    </select>
+
+    <select id="countByName" resultType="int">
+        SELECT COUNT(*) FROM dish WHERE dish_name = #{dishName}
+    </select>
+
+    <select id="findById" resultType="com.luwei.ordering.entity.DishEntity">
+        SELECT dish_number, dish_name, dish_status, dish_introduction, price, category
+        FROM dish
+        WHERE dish_number = #{dishNumber}
+    </select>
+
+    <select id="countByNameExcludeId" resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        FROM dish
+        WHERE dish_number != #{dishNumber}
+        AND dish_name = #{dishName}
+    </select>
+
+    <insert id="insertDish" useGeneratedKeys="true" keyProperty="dishNumber">
+        INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category)
+        VALUES (#{dishName}, #{dishStatus}, #{dishIntroduction}, #{price}, #{category})
+    </insert>
+
+</mapper>
