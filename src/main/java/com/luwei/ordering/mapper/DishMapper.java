@@ -47,4 +47,13 @@ public interface DishMapper {
 
     int updateStatus(@Param("dishStatus") DishStatus dishStatus,
                      @Param("dishNumber") Long dishNumber);
+    /**
+     *  获取当前所有上架的菜品
+     */
+    List<DishEntity> findAvailableAll();
+
+    /**
+     *  根据dishNumber获取当前上架的菜品
+     */
+    List<DishEntity> findByIds(@Param("dishNumbers") List<Long> ids);
 }

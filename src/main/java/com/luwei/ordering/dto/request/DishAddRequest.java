@@ -1,6 +1,7 @@
 package com.luwei.ordering.dto.request;
 
 import com.luwei.ordering.common.enums.Category;
+import com.luwei.ordering.common.enums.SpicyLevel;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -41,4 +42,9 @@ public class DishAddRequest {
     @NotNull
     private Category category;
 
+    /**
+     *  菜品辣度
+     */
+    @NotNull
+    private SpicyLevel spicyLevel;
 }

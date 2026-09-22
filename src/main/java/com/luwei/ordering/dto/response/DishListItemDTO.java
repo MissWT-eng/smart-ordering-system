@@ -12,10 +12,10 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class DishListItemDTO {
 
-/**
- * 菜品编号，数据库主键
- */
-private Long dishNumber;
+    /**
+     * 菜品编号，数据库主键
+     */
+    private Long dishNumber;
 
     /**
      * 菜品名称

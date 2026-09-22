@@ -8,7 +8,8 @@
         SET dish_name = #{dishName},
             dish_introduction = #{dishIntroduction},
             price = #{price},
-            category = #{category}
+            category = #{category},
+            spicy_level = #{spicyLevel}
         WHERE dish_number = #{dishNumber}
     </update>
 
@@ -33,7 +34,7 @@
     </select>
 
     <select id="queryDishesByPage" resultType="com.luwei.ordering.entity.DishEntity">
-        SELECT dish_number, dish_name, dish_status, dish_introduction, price, category
+        SELECT dish_number, dish_name, dish_status, dish_introduction, price, category, spicy_level
         FROM dish
         <where>
             <if test="request.status != null and request.status != ''">
@@ -68,9 +69,22 @@
         AND dish_name = #{dishName}
     </select>
 
+    <select id="findAvailableAll" resultType="com.luwei.ordering.entity.DishEntity">
+        SELECT dish_number, dish_name, dish_status, dish_introduction, price, category, spicy_level
+        FROM dish WHERE dish_status = 'available'
+    </select>
+
+    <select id="findByIds" resultType="com.luwei.ordering.entity.DishEntity">
+        SELECT dish_number, dish_name, dish_status, dish_introduction, price, category, spicy_level
+        FROM dish WHERE dish_number IN
+        <foreach collection="dishNumbers" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
     <insert id="insertDish" useGeneratedKeys="true" keyProperty="dishNumber">
-        INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category)
-        VALUES (#{dishName}, #{dishStatus}, #{dishIntroduction}, #{price}, #{category})
+        INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+        VALUES (#{dishName}, #{dishStatus}, #{dishIntroduction}, #{price}, #{category}, #{spicyLevel})
     </insert>
 
 </mapper>

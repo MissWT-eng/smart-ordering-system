@@ -8,6 +8,7 @@ import com.luwei.ordering.dto.response.DishListItemDTO;
 import com.luwei.ordering.dto.response.PageResult;
 
 
+
 public interface DishService {
     PageResult<DishListItemDTO> queryDishes(DishQueryRequest request);
     Long addDish(DishAddRequest request);

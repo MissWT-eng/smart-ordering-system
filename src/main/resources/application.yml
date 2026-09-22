@@ -1,4 +1,6 @@
 spring:
+  application:
+    name: smart-ordering-system
   datasource:
     url: jdbc:mysql://localhost:3306/smart_ordering?serverTimezone=Asia/Shanghai&characterEncoding=utf8
     username: ${SPRING_DATASOURCE_USERNAME:root}
@@ -9,3 +11,37 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
     default-enum-type-handler: com.luwei.ordering.common.typehandler.CodeEnumTypeHandler
+langchain4j:
+  open-ai:
+    chat-model:
+      api-key: ${DEEPSEEK_API_KEY}
+      model-name: deepseek-chat
+      base-url: https://api.deepseek.com
+      temperature: 0.7
+      max-tokens: 2048
+    embedding-model:
+      api-key: ${BGE_M3_API_KEY}
+      model-name: Pro/BAAI/bge-m3
+      base-url: https://api.siliconflow.cn/v1
+#    streaming-model:
+#      api-key: ${DEEPSEEK_API_KEY}
+#      model-name: deepseek-chat
+#      base-url: https://api.deepseek.com
+qdrant:
+  host: localhost
+  port: 6334
+
+logging:
+  level:
+    com:
+      luwei:
+        ordering:
+          debug
+
+rerank:
+  alpha: 0.6
+  beta: 0.4
+  confidence-k: 2.0
+
+
+

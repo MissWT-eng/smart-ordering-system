@@ -1,25 +1,27 @@
 package com.luwei.ordering.common.enums;
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
-public enum DishStatus implements CodeEnum{
-    AVAILABLE("available") ,
-    UNAVAILABLE("unavailable");
+public enum UserStatus implements CodeEnum{
+    ACTIVE("active"),
+    DISABLED("disabled");
 
-    DishStatus(String code){
+    UserStatus(String code)
+    {
         this.code = code;
     }
 
     private final String code;
 
+
     @JsonValue
-    public String getCode() {
+    public String getCode()
+    {
         return code;
     }
 
     @JsonCreator
-    public static DishStatus fromCode(String code){
-        return CodeEnum.fromCode(DishStatus.class , code);
+    public static UserStatus fromCode(String code){
+        return CodeEnum.fromCode(UserStatus.class , code);
     }
 }

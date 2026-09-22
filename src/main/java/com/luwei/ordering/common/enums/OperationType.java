@@ -3,16 +3,14 @@ package com.luwei.ordering.common.enums;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
-public enum Category implements CodeEnum{
-    MEAT("meat"),
-    VEGETABLE("vegetable"),
-    DRINK("drink"),
-    SOUP("soup");
+public enum OperationType implements CodeEnum{
+    INSERT("insert"),
+    UPDATE("update"),
+    DELETE("delete");
 
     private final String code;
-    Category(String code){
+    OperationType(String code){
         this.code = code;
-
     }
 
     @JsonValue
@@ -21,7 +19,7 @@ public enum Category implements CodeEnum{
     }
 
     @JsonCreator
-    public static Category fromCode(String code){
-     return CodeEnum.fromCode(Category.class , code);
+    public static OperationType fromCode(String code){
+        return CodeEnum.fromCode(OperationType.class , code);
     }
 }

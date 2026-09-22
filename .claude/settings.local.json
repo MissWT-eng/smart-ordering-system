@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Read(//c/Users/问题小姐/Documents/New project/LLM_Chat/**)"
-    ]
-  }
-}

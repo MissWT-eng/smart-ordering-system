@@ -1,13 +1,11 @@
 package com.luwei.ordering.controller;
 
-import com.luwei.ordering.dto.request.DishAddRequest;
-import com.luwei.ordering.dto.request.DishQueryRequest;
-import com.luwei.ordering.dto.request.DishStatusUpdateRequest;
-import com.luwei.ordering.dto.request.DishUpdateRequest;
+import com.luwei.ordering.dto.request.*;
 import com.luwei.ordering.dto.response.ApiResponse;
 import com.luwei.ordering.dto.response.DishListItemDTO;
 import com.luwei.ordering.dto.response.PageResult;
 import com.luwei.ordering.service.DishService;
+import com.luwei.ordering.service.DishVectorService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -23,7 +21,7 @@ import org.springframework.web.bind.annotation.*;
 public class DishController {
 
     private final DishService dishService;
-
+    private final DishVectorService dishVectorService;
     /**
      * 查询全部菜品
      */
@@ -68,4 +66,14 @@ public class DishController {
         dishService.updateDishStatus(dishNumber , request);
         return ApiResponse.success();
     }
+
+    /**
+     *  数据丢失、污染后重置向量库
+     */
+    @PostMapping("/vector/resync")
+    public ApiResponse<Void> resyncDish() {
+        dishVectorService.resyncDish();
+        return ApiResponse.success();
+    }
+
 }

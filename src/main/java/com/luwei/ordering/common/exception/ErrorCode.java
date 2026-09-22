@@ -8,7 +8,10 @@ public enum ErrorCode {
     PARAM_ERROR(400 ,"参数错误"),
     NOT_EXIST(404 , "访问资源不存在"),
     SYSTEM_ERROR(500 , "系统内部错误"),
-    DISH_NAME_EXISTS(409 , "菜品名已存在");
+    DISH_NAME_EXISTS(409 , "菜品名已存在"),
+    USER_DISABLED(403 , "该用户已被禁用"),
+    DISH_NOT_AVAILABLE(409 , "该菜品不存在或已下架"),
+    ILLEGAL_QUANTITY(400, "菜品数量不合法");
 
     private final int code;
     private final String msg;

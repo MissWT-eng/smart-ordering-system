@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.luwei.ordering.mapper.UserDishFeedbackMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="feedbackId">
+        INSERT INTO user_dish_feedback
+        (user_id , dish_number , feedback_score)
+        VALUES
+        (#{userId} , #{dishNumber} , #{feedbackScore})
+    </insert>
+
+
+    <select id="countAll" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM user_dish_feedback
+    </select>
+
+
+    <select id="selectAffinityByUser" resultType="com.luwei.ordering.dto.internal.DishFeedbackStat">
+        SELECT dish_number AS dishNumber,
+               AVG(feedback_score) AS avgScore,
+               COUNT(*) AS orderCount
+        FROM user_dish_feedback
+        WHERE user_id = #{userId}
+        GROUP BY dish_number
+    </select>
+
+
+</mapper>

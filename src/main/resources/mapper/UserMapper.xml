@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.luwei.ordering.mapper.UserMapper">
+
+    <insert id="insertUser" useGeneratedKeys="true" keyProperty="userId">
+        INSERT INTO user(phone_number, nickname, user_status)
+        VALUES (#{phoneNumber} , #{nickName}, #{userStatus})
+    </insert>
+
+
+    <select id="findByPhone" resultType="com.luwei.ordering.entity.UserEntity">
+        SELECT user_id ,phone_number, nickname, user_created_time, user_status, balance
+        FROM user
+        WHERE phone_number = #{phoneNumber}
+        LIMIT 1;
+    </select>
+
+    <select id="findById" resultType="com.luwei.ordering.entity.UserEntity">
+        SELECT user_id ,phone_number, nickname, user_created_time, user_status, balance
+        FROM user
+        WHERE user_id = #{userId}
+        LIMIT 1;
+    </select>
+
+
+</mapper>

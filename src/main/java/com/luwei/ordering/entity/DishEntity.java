@@ -2,6 +2,7 @@ package com.luwei.ordering.entity;
 
 import com.luwei.ordering.common.enums.Category;
 import com.luwei.ordering.common.enums.DishStatus;
+import com.luwei.ordering.common.enums.SpicyLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -47,4 +48,10 @@ public class DishEntity {
      * 菜品分类，例如 meat、vegetable、drink、soup。
      */
     private Category category;
+
+    /**
+     *  辣度分类,用作metadata的初筛
+     */
+    private SpicyLevel spicyLevel;
+
 }
