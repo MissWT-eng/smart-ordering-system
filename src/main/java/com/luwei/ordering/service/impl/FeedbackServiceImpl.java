@@ -1,7 +1,18 @@
 package com.luwei.ordering.service.impl;
 
+import com.luwei.ordering.common.enums.DishStatus;
+import com.luwei.ordering.common.enums.UserStatus;
+import com.luwei.ordering.common.exception.BusinessException;
+import com.luwei.ordering.common.exception.ErrorCode;
+import com.luwei.ordering.converter.FeedbackConverter;
 import com.luwei.ordering.dto.internal.DishFeedbackStat;
+import com.luwei.ordering.dto.request.FeedbackAddRequest;
+import com.luwei.ordering.entity.DishEntity;
+import com.luwei.ordering.entity.UserDishFeedbackEntity;
+import com.luwei.ordering.entity.UserEntity;
+import com.luwei.ordering.mapper.DishMapper;
 import com.luwei.ordering.mapper.UserDishFeedbackMapper;
+import com.luwei.ordering.mapper.UserMapper;
 import com.luwei.ordering.service.FeedbackService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,6 +26,9 @@ import java.util.stream.Collectors;
 
 public class FeedbackServiceImpl implements FeedbackService {
     private final UserDishFeedbackMapper feedbackMapper;
+    private final UserMapper userMapper;
+    private final DishMapper dishMapper;
+    private final FeedbackConverter feedbackConverter;
 
     /**
      * 注意AI最开始设计的时候没有考虑到5分制的情况下 不应该以5为中心归一化
@@ -42,5 +56,26 @@ public class FeedbackServiceImpl implements FeedbackService {
                     double confidence = s.getOrderCount() / (s.getOrderCount() + 2.0);
                     return centered * confidence;
                 }));
+    }
+
+    @Override
+    public void addFeedback(FeedbackAddRequest feedbackAddRequest) {
+        // 1. 用户存在 + 未禁用
+        UserEntity entity = userMapper.findById(feedbackAddRequest.getUserId());
+        if(entity == null) throw new BusinessException(ErrorCode.NOT_EXIST);
+        if(entity.getUserStatus() == UserStatus.DISABLED){
+            throw new BusinessException(ErrorCode.USER_DISABLED);
+        }
+        // 2. 菜品存在 + 上架(dishMapper.findById + 状态判断)
+        DishEntity dish = dishMapper.findById(feedbackAddRequest.getDishNumber());
+        if(dish == null) throw new BusinessException(ErrorCode.NOT_EXIST);
+        if(dish.getDishStatus() == DishStatus.UNAVAILABLE){
+            throw new BusinessException(ErrorCode.DISH_NOT_AVAILABLE);
+        }
+        // 3. 分数 1~5 已由注解拦, 这里不用再查
+        UserDishFeedbackEntity feedbackEntity = feedbackConverter.toEntity(feedbackAddRequest);
+
+        // 4. feedbackMapper.insert(entity) 落库
+        feedbackMapper.insert(feedbackEntity);
     }
 }

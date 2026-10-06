@@ -6,6 +6,14 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:root}
     password: ${SPRING_DATASOURCE_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+auth:
+  token-ttl-hours: 2
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   configuration:
@@ -43,5 +51,12 @@ rerank:
   beta: 0.4
   confidence-k: 2.0
 
+weather:
+  api-key: ${QWEATHER_API_KEY}
+  base-url: https://k25g7fba89.re.qweatherapi.com
+  city-id: 101060101   # 长春
+
+admin:
+  token: ${ADMIN_TOKEN}
 
 

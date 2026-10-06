@@ -7,7 +7,7 @@ import java.util.List;
 
 @Data
 public class OrderCreateRequest {
-    @NotNull(message = "该订单下单用户不能为空")
+    //第一版实现文档是要求游客可以不注册订单
     private Long userId;
 
     @NotNull(message = "订单明细不能为空")

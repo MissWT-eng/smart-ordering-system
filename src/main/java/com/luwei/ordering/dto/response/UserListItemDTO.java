@@ -1,5 +1,6 @@
 package com.luwei.ordering.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.luwei.ordering.common.enums.Category;
 import com.luwei.ordering.common.enums.DishStatus;
 import com.luwei.ordering.common.enums.UserStatus;
@@ -13,6 +14,8 @@ import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
+
 public class UserListItemDTO {
     /**
      *  用户的 id 主键自增
@@ -43,4 +46,9 @@ public class UserListItemDTO {
      *   用户余额
      */
     private BigDecimal balance;
+
+    /**
+     *  用户登录token
+     */
+    private String token;
 }

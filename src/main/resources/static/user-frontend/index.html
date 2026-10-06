@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>智能点餐 · 今天吃点什么</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===== 顶部固定导航 ===== -->
+  <header class="nav">
+    <div class="nav-brand">
+      <span class="nav-title">智能<em>点餐</em></span>
+      <span class="nav-vol">VOL.01</span>
+    </div>
+    <nav class="nav-links">
+      <button class="nav-btn" data-page="home">首页</button>
+      <button class="nav-btn" data-page="menu">浏览菜单</button>
+      <button class="nav-btn" data-page="orders">我的订单</button>
+      <button class="nav-btn nav-login" id="navLoginBtn">登录</button>
+    </nav>
+  </header>
+
+  <main class="container">
+
+    <!-- ===== 页面：首页（Agent-first，提问态 / 结果态双形态） ===== -->
+    <section id="page-home" class="page active">
+      <div class="hero">
+        <!-- 背景巨型水印字 -->
+        <div class="hero-watermark" aria-hidden="true">食</div>
+        <!-- 印章 -->
+        <div class="seal" aria-hidden="true">鲜</div>
+
+        <div class="hero-index">AI Concierge · 智能膳食管家</div>
+        <h1>今天，<br/><span class="highlight">吃点什么？</span></h1>
+        <p class="hero-sub">不用翻菜单。把口味、预算、心情说成一句话，剩下的交给我。</p>
+
+        <!-- 墨色指令台：提问态为大卡片，结果态自动收成顶部输入条 -->
+        <div class="agent-box">
+          <div class="agent-label">你的需求 · YOUR CRAVING</div>
+          <textarea
+            id="preferenceInput"
+            class="agent-input"
+            rows="3"
+            placeholder="例如：想吃辣的、不要汤、想喝点热乎的……（预算和人数填上面）"></textarea>
+          <div class="agent-extra">
+            <label class="extra-field">
+              <span>人数</span>
+              <input id="peopleNumInput" type="number" min="1" max="100" placeholder="可选" />
+            </label>
+            <label class="extra-field">
+              <span>预算 ¥</span>
+              <input id="budgetInput" type="number" min="0" step="1" placeholder="可选" />
+            </label>
+          </div>
+          <!-- 快捷词条只放"结构化字段表达不了"的口味/场景；预算、人数请用上面的输入框 -->
+          <div class="quick-tags" id="quickTags">
+            <button class="quick-tag">想吃辣的</button>
+            <button class="quick-tag">来点清淡的</button>
+            <button class="quick-tag">超下饭的菜</button>
+            <button class="quick-tag">适合下酒</button>
+          </div>
+          <button id="recommendBtn" class="btn-primary btn-big">开始推荐</button>
+        </div>
+
+        <!-- 收起结果后的返回入口（点击直接恢复，不发新请求） -->
+        <button id="backToResult" class="back-result hidden">
+          <span>上次推荐还在，点击查看结果</span>
+          <span class="back-result-arrow">→</span>
+        </button>
+      </div>
+
+      <!-- 跑马灯分割带（结果态自动隐藏） -->
+      <div class="marquee" aria-hidden="true">
+        <span class="marquee-inner">
+          麻辣鲜香 <b>·</b> 清淡爽口 <b>·</b> 家常下饭 <b>·</b> 汤羹暖胃 <b>·</b> 饮品解腻 <b>·</b> 时令鲜蔬 <b>·</b>
+          麻辣鲜香 <b>·</b> 清淡爽口 <b>·</b> 家常下饭 <b>·</b> 汤羹暖胃 <b>·</b> 饮品解腻 <b>·</b> 时令鲜蔬 <b>·</b>
+        </span>
+      </div>
+
+      <!-- 三步流程（结果态自动隐藏） -->
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">STEP 01</div>
+          <div class="step-title">说需求</div>
+          <div class="step-desc">一句话描述想吃什么，不用想菜名</div>
+        </div>
+        <div class="step">
+          <div class="step-num">STEP 02</div>
+          <div class="step-title">挑卡片</div>
+          <div class="step-desc">AI 给出带理由的推荐，勾选数量</div>
+        </div>
+        <div class="step">
+          <div class="step-num">STEP 03</div>
+          <div class="step-title">一键下单</div>
+          <div class="step-desc">确认即下单，吃完还能打个分</div>
+        </div>
+      </div>
+
+      <!-- 推荐结果区域（结果态主角） -->
+      <div id="recommendResult" class="recommend-result hidden">
+        <div class="section-head">
+          <span class="section-num">01</span>
+          <span class="section-title">为你推荐</span>
+          <button class="link-btn" id="exitResult">收起结果 ✕</button>
+        </div>
+        <p id="recommendSummary" class="summary"></p>
+        <div class="rail-hint hidden">左右滑动查看 →</div>
+        <div class="rail-wrap">
+          <div id="recommendCards" class="card-grid"></div>
+        </div>
+      </div>
+
+      <div id="homeEmpty" class="empty-tip">— 输入你的口味偏好，我来帮你挑 —</div>
+
+      <footer class="page-footer">
+        <span class="footer-brand">智能点餐</span>
+        <span class="footer-note">ORDER SMART · EAT WELL</span>
+      </footer>
+    </section>
+
+    <!-- ===== 页面：浏览菜单 ===== -->
+    <section id="page-menu" class="page">
+      <div class="section-head">
+        <span class="section-num">02</span>
+        <span class="section-title">全部菜单</span>
+      </div>
+      <div class="filter-bar" id="categoryFilter">
+        <button class="chip active" data-category="">全部</button>
+        <button class="chip" data-category="meat">荤菜</button>
+        <button class="chip" data-category="vegetable">素菜</button>
+        <button class="chip" data-category="soup">汤羹</button>
+        <button class="chip" data-category="drink">饮品</button>
+      </div>
+      <!-- 计数与加载态放在卡片上方：分页/筛选后能立刻知道结果集多大 -->
+      <div class="menu-meta">
+        <span id="menuCount">—</span>
+        <span id="menuLoading" class="menu-loading hidden">加载中…</span>
+      </div>
+      <div id="menuCards" class="card-grid"></div>
+      <div id="menuPager" class="pager">
+        <button id="menuPrev" class="btn-ghost">上一页</button>
+        <span id="menuPageInfo">1 / 1</span>
+        <button id="menuNext" class="btn-ghost">下一页</button>
+      </div>
+    </section>
+
+    <!-- ===== 页面：我的订单 ===== -->
+    <section id="page-orders" class="page">
+      <div class="section-head">
+        <span class="section-num">03</span>
+        <span class="section-title">我的订单</span>
+      </div>
+      <div id="orderList" class="order-list"></div>
+      <div id="ordersEmpty" class="empty-tip hidden">
+        <span id="ordersEmptyText">登录后就能查看历史订单</span>
+        <button id="emptyLoginBtn" class="btn-primary btn-sm">去登录</button>
+      </div>
+
+      <!-- 游客订单：只存在本机，用于补上"付完没凭条"的缺口 -->
+      <div id="guestSection" class="hidden">
+        <div class="section-head">
+          <span class="section-num">附</span>
+          <span class="section-title">本机游客订单</span>
+        </div>
+        <div id="guestOrderList" class="order-list"></div>
+        <p class="guest-note">这些单未关联账号，仅保存在本机浏览器；登录后下单可在上方永久查询。</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== 底部下单栏 ===== -->
+  <footer id="cartBar" class="cart-bar hidden">
+    <div class="cart-inner">
+      <div class="cart-info">
+        已选 <b id="cartCount">0</b> 项 · 合计 <b class="price" id="cartTotal">¥0.00</b>
+      </div>
+      <button id="checkoutBtn" class="btn-primary">去下单</button>
+    </div>
+  </footer>
+
+  <!-- ===== 登录弹窗 ===== -->
+  <div id="loginModal" class="modal-mask hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle">
+      <h3 id="loginModalTitle">手机号登录 / 注册</h3>
+      <p class="modal-sub">首次使用会自动创建账号</p>
+      <input id="loginPhone" class="text-input" type="tel" maxlength="11" placeholder="手机号（11位）" />
+      <input id="loginNick" class="text-input" type="text" maxlength="20" placeholder="昵称（可选）" />
+      <div class="modal-footer">
+        <button class="btn-ghost" data-close="loginModal">取消</button>
+        <button id="loginSubmit" class="btn-primary">登录</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 用户信息弹窗 ===== -->
+  <div id="userModal" class="modal-mask hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="userModalTitle">
+      <h3 id="userModalTitle">我的账户</h3>
+      <div class="user-card">
+        <div class="user-avatar" id="userAvatar">客</div>
+        <div class="user-name" id="userName">—</div>
+        <div class="user-rows">
+          <div class="user-row">
+            <span class="user-key">手机号</span>
+            <span class="user-val" id="userPhone">—</span>
+          </div>
+          <div class="user-row">
+            <span class="user-key">用户编号</span>
+            <span class="user-val" id="userId">—</span>
+          </div>
+          <div class="user-row">
+            <span class="user-key">账户状态</span>
+            <span class="user-val" id="userStatus">—</span>
+          </div>
+          <div class="user-row">
+            <span class="user-key">余额</span>
+            <span class="user-val user-balance" id="userBalance">—</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer split">
+        <button id="logoutBtn" class="btn-ghost btn-danger">退出登录</button>
+        <button class="btn-primary" data-close="userModal">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 下单成功弹窗（订单详情 + 评分） ===== -->
+  <div id="orderModal" class="modal-mask hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="orderModalTitle">
+      <h3 id="orderModalTitle">下单成功</h3>
+      <div id="orderDetail" class="order-detail"></div>
+      <div class="rate-section">
+        <p id="rateTip">给刚才的菜评个分吧（可选）：</p>
+        <div id="rateList" class="rate-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="orderModalCloseBtn" class="btn-ghost" data-close="orderModal">完成</button>
+        <button id="rateSubmitBtn" class="btn-primary">提交评分</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 全局提示 ===== -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -6,24 +6,21 @@ import com.luwei.ordering.common.enums.OrderStatus;
 import com.luwei.ordering.common.enums.UserStatus;
 import com.luwei.ordering.common.exception.BusinessException;
 import com.luwei.ordering.common.exception.ErrorCode;
+import com.luwei.ordering.converter.OrdersConverter;
 import com.luwei.ordering.dto.request.OrderCreateRequest;
 import com.luwei.ordering.dto.request.OrderItemRequest;
+import com.luwei.ordering.dto.request.OrderUpdateRequest;
 import com.luwei.ordering.dto.response.OrderItemDTO;
 import com.luwei.ordering.dto.response.OrderListItemDTO;
 import com.luwei.ordering.dto.response.PageResult;
-import com.luwei.ordering.entity.DishEntity;
-import com.luwei.ordering.entity.OrderItemEntity;
-import com.luwei.ordering.entity.OrdersEntity;
-import com.luwei.ordering.entity.UserEntity;
-import com.luwei.ordering.mapper.DishMapper;
-import com.luwei.ordering.mapper.OrderItemMapper;
-import com.luwei.ordering.mapper.OrderMapper;
-import com.luwei.ordering.mapper.UserMapper;
+import com.luwei.ordering.entity.*;
+import com.luwei.ordering.mapper.*;
 import com.luwei.ordering.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -41,16 +38,28 @@ public class OrderServiceImpl implements OrderService {
     private final DishMapper dishMapper;
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
+    private final ObjectMapper objectMapper;
+    private final RecommendationLogMapper recommendationLogMapper; 
+    private final OrdersConverter ordersConverter;
 
     @Override
     @Transactional
     public OrderListItemDTO createOrder(OrderCreateRequest request) {
 
-        //做用户存在校验
-        UserEntity entity = userMapper.findById(request.getUserId());
-        if (entity == null) throw new BusinessException(ErrorCode.NOT_EXIST);
-        //再做一个用户状态校验
-        if (entity.getUserStatus() == UserStatus.DISABLED) throw new BusinessException(ErrorCode.USER_DISABLED);
+        //查询用户看是不是游客,如果不是游客再做用户状态校验(三段式)
+        UserEntity entity = null;
+        if(request.getUserId() != null) {
+            entity = userMapper.findById(request.getUserId());
+            if (entity != null) {
+                //再做一个用户状态校验
+                if (entity.getUserStatus() == UserStatus.DISABLED) throw new BusinessException(ErrorCode.USER_DISABLED);
+            }
+            //查不到用户直接抛出异常
+            else{
+                throw new BusinessException(ErrorCode.NOT_EXIST);
+            }
+
+        }
 
         //收集菜号,一次反查
         List<Long> dishNumber = request.getOrderItems().stream()
@@ -100,6 +109,28 @@ public class OrderServiceImpl implements OrderService {
 
         orderItemMapper.insertBatch(itemEntities);
 
+        //如果是游客的话不做recommendation_log回填
+        if(entity != null) {
+
+            //TODO 后续可以在下单请求里带上推荐 logId 做精确关联
+            //做recommendation_log回填
+            try {
+                List<Long> orderedDishNumbers = itemEntities.stream()
+                        .map(OrderItemEntity::getDishNumber)
+                        .distinct()
+                        .toList();
+
+                String orderedJson = objectMapper.writeValueAsString(orderedDishNumbers);
+                RecommendationLogEntity latest = recommendationLogMapper.findLatestByUserId(request.getUserId());
+                if (latest != null) {
+                    recommendationLogMapper.updateOrderDishes(latest.getLogId(), orderedJson);
+                    log.info("回填实际点餐成功, logId:{}, orderedDishes:{}", latest.getLogId(), orderedJson);
+                }
+            } catch (Exception e) {
+                log.error("回填实际点餐失败(不影响下单), userId:{}", request.getUserId(), e);
+            }
+        }
+
         //组装返回
         List<OrderItemDTO> itemDTOS = new ArrayList<>();
         for (OrderItemEntity e : itemEntities) {
@@ -120,6 +151,7 @@ public class OrderServiceImpl implements OrderService {
         );
     }
 
+
     @Override
     public PageResult<OrderListItemDTO> queryOrders(Long userId, Integer pageNum, Integer pageSize) {
         //做用户存在校验
@@ -137,6 +169,10 @@ public class OrderServiceImpl implements OrderService {
         //算offset
         long offset = (pageNum - 1) * pageSize;
         List<OrdersEntity> orders = orderMapper.findByUserId(userId, offset, pageSize);
+
+        if (orders.isEmpty()) {
+            return new PageResult<>(0L, pageNum, pageSize, List.of(), 0);
+        }
 
         //空页提前返回(总页数正常算,数据是空列表)
         int totalPages = (int) Math.ceil((double) total / pageSize);
@@ -174,4 +210,22 @@ public class OrderServiceImpl implements OrderService {
         }
         return new PageResult<>(total, pageNum, pageSize, list, totalPages);
     }
+
+    @Override
+    public void updateOrder(OrderUpdateRequest request){
+        //查单 不存在直接返回
+        OrdersEntity order = orderMapper.findByOrderNum(request.getOrderNum());
+        if(order== null) {
+            throw new BusinessException(ErrorCode.NOT_EXIST);
+        }
+
+        //更新状态 查状态流转表,不能流转直接抛出报错
+        OrdersEntity entity = ordersConverter.toOrderEntity(request);
+        if(! order.getOrderStatus().canTransitionTo(request.getOrderStatus())){
+            throw new BusinessException(ErrorCode.CANT_TRANSITION_TO);
+        }
+
+        orderMapper.updateOrderStatus(entity);
+    }
+
 }

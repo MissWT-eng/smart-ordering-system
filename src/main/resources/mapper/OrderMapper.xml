@@ -7,8 +7,14 @@
         INSERT INTO orders
         (order_user_id , order_total_money,order_status)
         VALUES
-        (#{orderUserId} , #{orderTotalMoney} , #{orderStatus})
+        (#{orderUserId,jdbcType=BIGINT} , #{orderTotalMoney} , #{orderStatus})
     </insert>
+
+    <update id="updateOrderStatus">
+        UPDATE orders
+        SET order_status = #{orderStatus}
+        WHERE order_num = #{orderNum}
+    </update>
 
     <select id="findByUserId" resultType="com.luwei.ordering.entity.OrdersEntity">
         SELECT order_num, order_user_id, order_total_money, order_time, order_status
@@ -20,6 +26,12 @@
 
     <select id="countByUserId" resultType="java.lang.Long">
         SELECT COUNT(*) FROM orders WHERE order_user_id = #{userId}
+    </select>
+
+    <select id="findByOrderNum" resultType="com.luwei.ordering.entity.OrdersEntity">
+        SELECT order_num, order_user_id, order_total_money, order_time, order_status
+        FROM orders
+        WHERE order_num = #{orderNum}
     </select>
 
 

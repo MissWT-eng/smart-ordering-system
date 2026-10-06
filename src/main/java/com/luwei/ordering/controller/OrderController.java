@@ -26,6 +26,6 @@ public class OrderController {
                                                                  @RequestParam(defaultValue = "1") Integer pageNum,
                                                                  @RequestParam(defaultValue = "10") Integer pageSize) {
         return ApiResponse.success(orderService.queryOrders(userId, pageNum, pageSize));
-
     }
+
 }

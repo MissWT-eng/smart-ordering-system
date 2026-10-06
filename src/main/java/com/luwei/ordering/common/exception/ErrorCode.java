@@ -11,8 +11,10 @@ public enum ErrorCode {
     DISH_NAME_EXISTS(409 , "菜品名已存在"),
     USER_DISABLED(403 , "该用户已被禁用"),
     DISH_NOT_AVAILABLE(409 , "该菜品不存在或已下架"),
-    ILLEGAL_QUANTITY(400, "菜品数量不合法");
-
+    ILLEGAL_QUANTITY(400, "菜品数量不合法"),
+    CANT_TRANSITION_TO(409,"订单状态不允许改变"),
+    NOT_AUTH(401, "未授权用户"),
+    FORBIDDEN(403, "凭证与身份不符");
     private final int code;
     private final String msg;
 

@@ -3,9 +3,26 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="com.luwei.ordering.mapper.RecommendationLogMapper">
+
     <insert id="insertLog" useGeneratedKeys="true" keyProperty="logId">
      INSERT INTO recommendation_log
-     (user_id ,recommended_dishes)
-     VALUES(#{userId} , #{recommendedDishes})
+     (user_id ,recommended_dishes, weather)
+     VALUES(#{userId} , #{recommendedDishes}, #{weather,jdbcType=VARCHAR})
     </insert>
+
+
+    <update id="updateOrderDishes">
+        UPDATE recommendation_log
+        SET ordered_dishes = #{orderedDishes}
+        WHERE log_id = #{logId}
+    </update>
+
+    <select id="findLatestByUserId" resultType="com.luwei.ordering.entity.RecommendationLogEntity">
+        SELECT log_id,user_id,recommended_dishes,ordered_dishes,weather,context,
+               recommendation_time,feedback_score
+        FROM recommendation_log
+        WHERE user_id = #{userId}
+        ORDER BY recommendation_time DESC, log_id DESC
+        LIMIT 1
+    </select>
 </mapper>

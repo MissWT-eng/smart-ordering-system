@@ -6,10 +6,7 @@ import com.luwei.ordering.dto.response.RecommendationResponse;
 import com.luwei.ordering.service.RecommendationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/recommendations")
@@ -22,8 +19,9 @@ public class RecommendationController {
      */
     @PostMapping
     public ApiResponse<RecommendationResponse> recommend(@Valid @RequestBody
-                                                         RecommendationRequest request)
+                                                         RecommendationRequest request,
+                                                         @RequestHeader(value = "X-User-Token", required = false) String token)
     {
-        return ApiResponse.success(recommendationService.recommendDishes(request));
+        return ApiResponse.success(recommendationService.recommendDishes(request,token));
     }
 }

@@ -1,5 +1,6 @@
 package com.luwei.ordering.mapper;
 
+import com.luwei.ordering.common.enums.OrderStatus;
 import com.luwei.ordering.entity.OrdersEntity;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -24,4 +25,13 @@ public interface OrderMapper {
      */
     long countByUserId(@Param("userId") Long userId);
 
+    /**
+     *  根据订单号查询订单
+     */
+    OrdersEntity findByOrderNum(@Param("orderNum") Long orderNum);
+
+    /**
+     *  更新订单状态
+     */
+    int updateOrderStatus(OrdersEntity ordersEntity);
 }

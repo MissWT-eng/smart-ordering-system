@@ -77,9 +77,11 @@
     <select id="findByIds" resultType="com.luwei.ordering.entity.DishEntity">
         SELECT dish_number, dish_name, dish_status, dish_introduction, price, category, spicy_level
         FROM dish WHERE dish_number IN
+        <if test="dishNumbers != null and dishNumbers.size() > 0">
         <foreach collection="dishNumbers" item="id" open="(" separator="," close=")">
             #{id}
         </foreach>
+        </if>
     </select>
 
     <insert id="insertDish" useGeneratedKeys="true" keyProperty="dishNumber">
