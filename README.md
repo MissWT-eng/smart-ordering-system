@@ -12,7 +12,7 @@
 | 大模型 | LangChain4j + DeepSeek（对话）+ BGE-M3（向量化） |
 | 向量库 | Qdrant |
 | 外部能力 | 和风天气 API |
-| 前端 | 原生 HTML/CSS/JS（用户端 `static/user-frontend`、商户端 `merchant_ui.html`） |
+| 前端 | 原生 HTML/CSS/JS（用户端 `static/user-frontend`、商户端 `merchant_ui.html` 第二版完善） |
 
 ## 功能概览
 
@@ -81,7 +81,7 @@ export SPRING_DATASOURCE_PASSWORD=...
 ./mvnw spring-boot:run
 ```
 
-4. 访问用户端 `http://localhost:8080/user-frontend/index.html`，商户端 `http://localhost:8080/merchant_ui.html`。
+4. 访问用户端 `http://localhost:8080/user-frontend/index.html`，商户端 `http://localhost:8080/merchant_ui.html` 第二版完善。
 
 ## 文档
 
