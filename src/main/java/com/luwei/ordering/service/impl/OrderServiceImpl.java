@@ -10,9 +10,7 @@ import com.luwei.ordering.converter.OrdersConverter;
 import com.luwei.ordering.dto.request.OrderCreateRequest;
 import com.luwei.ordering.dto.request.OrderItemRequest;
 import com.luwei.ordering.dto.request.OrderUpdateRequest;
-import com.luwei.ordering.dto.response.OrderItemDTO;
-import com.luwei.ordering.dto.response.OrderListItemDTO;
-import com.luwei.ordering.dto.response.PageResult;
+import com.luwei.ordering.dto.response.*;
 import com.luwei.ordering.entity.*;
 import com.luwei.ordering.mapper.*;
 import com.luwei.ordering.service.OrderService;
@@ -45,6 +43,12 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderListItemDTO createOrder(OrderCreateRequest request) {
+        return createOrder(request,null);
+    }
+
+    @Override
+    @Transactional
+    public OrderListItemDTO createOrder(OrderCreateRequest request, OrderDraftSnapshot snapshot) {
 
         //查询用户看是不是游客,如果不是游客再做用户状态校验(三段式)
         UserEntity entity = null;
@@ -76,6 +80,8 @@ public class OrderServiceImpl implements OrderService {
                 throw new BusinessException(ErrorCode.DISH_NOT_AVAILABLE);
             }
         }
+        
+        validateDraftPrices(snapshot, dishMap);
 
         //算总额,用数据库价格
         BigDecimal total = BigDecimal.ZERO;
@@ -89,6 +95,12 @@ public class OrderServiceImpl implements OrderService {
         order.setOrderUserId(request.getUserId());
         order.setOrderStatus(OrderStatus.PENDING);
         order.setOrderTotalMoney(total);
+
+        // 通过草稿确认创建订单时，保存草稿信息
+        if (snapshot != null) {
+            order.setDraftId(snapshot.getDraftId());
+            order.setDraftOwnerKey(snapshot.getOwnerKey());
+        }
 
         orderMapper.insertOrder(order);
 
@@ -227,5 +239,63 @@ public class OrderServiceImpl implements OrderService {
 
         orderMapper.updateOrderStatus(entity);
     }
+
+    @Override
+    public OrderListItemDTO findOrderByDraftId(String draftId, String ownerKey) {
+        //检查两个参数是否为空，非法时抛出 PARAM_ERROR。
+        if(draftId == null || draftId.isBlank() || ownerKey == null || ownerKey.isBlank()) throw new BusinessException(ErrorCode.PARAM_ERROR);
+        //调用 orderMapper.findByDraftId(draftId)；查不到就返回 null。
+        OrdersEntity byDraftId = orderMapper.findByDraftId(draftId);
+        if(byDraftId == null) return null;
+        //比较 ownerKey 和订单的 draftOwnerKey；不同就抛出 FORBIDDEN。
+        if(! ownerKey.equals(byDraftId.getDraftOwnerKey())) throw new BusinessException(ErrorCode.FORBIDDEN);
+        List<OrderItemEntity> itemEntities =
+                orderItemMapper.findByOrderNum(byDraftId.getOrderNum());
+
+        List<Long> dishNumbers = itemEntities.stream()
+                .map(OrderItemEntity::getDishNumber)
+                .distinct()
+                .toList();
+
+        Map<Long, String> nameMap = new HashMap<>();
+        if (!dishNumbers.isEmpty()) {
+            List<DishEntity> dishes = dishMapper.findByIds(dishNumbers);
+
+            for (DishEntity dish : dishes) {
+                nameMap.put(dish.getDishNumber(), dish.getDishName());
+            }
+        }
+
+        List<OrderItemDTO> orderItems = new ArrayList<>();
+        for (OrderItemEntity item : itemEntities) {
+            orderItems.add(new OrderItemDTO(
+                    item.getDishNumber(),
+                    nameMap.get(item.getDishNumber()),
+                    item.getQuantity(),
+                    item.getPriceAtTime()
+            ));
+        }
+
+        return new OrderListItemDTO(
+                byDraftId.getOrderNum(),
+                byDraftId.getOrderTime(),
+                byDraftId.getOrderStatus(),
+                byDraftId.getOrderTotalMoney(),
+                orderItems
+        );
+    }
+
+    private void validateDraftPrices(
+            OrderDraftSnapshot snapshot,
+            Map<Long, DishEntity> dishMap) {
+            if(snapshot == null) return;
+        for (DraftOrderItemDTO item : snapshot.getQuote().getItems()) {
+            DishEntity entity = dishMap.get(item.getDishNumber());
+            if(entity == null || entity.getPrice().compareTo(item.getUnitPrice()) != 0){
+                throw new BusinessException(ErrorCode.DRAFT_DISH_INFO_ERROR,"当前草稿菜品价格和数据库实时价格不同,请重新试算并确认。");
+            }
+        }
+    }
+
 
 }

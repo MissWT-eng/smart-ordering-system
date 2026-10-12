@@ -1,5 +1,7 @@
 package com.luwei.ordering.config;
 
+import com.luwei.ordering.agent.OrderingAgent;
+import com.luwei.ordering.agent.tool.DishTools;
 import com.luwei.ordering.service.QueryAnalyzer;
 import com.luwei.ordering.service.RecommendationAssistant;
 import dev.langchain4j.data.segment.TextSegment;
@@ -34,5 +36,13 @@ public class AiConfig {
     @Bean
     public QueryAnalyzer analyzer(ChatModel chatModel){
         return AiServices.create(QueryAnalyzer.class , chatModel);
+    }
+
+    @Bean
+    public OrderingAgent orderingAgent(ChatModel chatModel, DishTools dishTools){
+        return AiServices.builder(OrderingAgent.class)
+                         .chatModel(chatModel)
+                         .tools(dishTools)
+                         .build();
     }
 }

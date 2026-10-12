@@ -34,4 +34,9 @@ public interface OrderMapper {
      *  更新订单状态
      */
     int updateOrderStatus(OrdersEntity ordersEntity);
+
+    /**
+     *  查询草稿订单
+     */
+    OrdersEntity findByDraftId(@Param("draftId") String draftId);
 }

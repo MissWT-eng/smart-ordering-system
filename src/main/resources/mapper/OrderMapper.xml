@@ -5,9 +5,9 @@
 
     <insert id="insertOrder" useGeneratedKeys="true" keyProperty="orderNum">
         INSERT INTO orders
-        (order_user_id , order_total_money,order_status)
+        (order_user_id , order_total_money, order_status, draft_id, draft_owner_key)
         VALUES
-        (#{orderUserId,jdbcType=BIGINT} , #{orderTotalMoney} , #{orderStatus})
+        (#{orderUserId,jdbcType=BIGINT} , #{orderTotalMoney} , #{orderStatus}, #{draftId}, #{draftOwnerKey})
     </insert>
 
     <update id="updateOrderStatus">
@@ -32,6 +32,12 @@
         SELECT order_num, order_user_id, order_total_money, order_time, order_status
         FROM orders
         WHERE order_num = #{orderNum}
+    </select>
+
+    <select id="findByDraftId" resultType="com.luwei.ordering.entity.OrdersEntity">
+        SELECT order_num, order_user_id, order_total_money, order_time, order_status, draft_id, draft_owner_key
+        FROM orders
+        WHERE draft_id = #{draftId}
     </select>
 
 

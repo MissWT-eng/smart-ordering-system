@@ -1,30 +1,36 @@
 package com.luwei.ordering.service.impl;
 
 import com.luwei.ordering.common.enums.DishStatus;
+import com.luwei.ordering.common.enums.OrderStatus;
 import com.luwei.ordering.common.enums.UserStatus;
 import com.luwei.ordering.common.exception.BusinessException;
 import com.luwei.ordering.common.exception.ErrorCode;
 import com.luwei.ordering.converter.DishConverter;
 import com.luwei.ordering.dto.ai.DishReason;
 import com.luwei.ordering.dto.ai.RecommendationResult;
+import com.luwei.ordering.dto.request.DraftOrderRequest;
+import com.luwei.ordering.dto.request.OrderItemRequest;
 import com.luwei.ordering.dto.request.RecommendationRequest;
 import com.luwei.ordering.dto.response.*;
-import com.luwei.ordering.entity.DishEntity;
-import com.luwei.ordering.entity.RecommendationLogEntity;
-import com.luwei.ordering.entity.UserEntity;
+import com.luwei.ordering.entity.*;
 import com.luwei.ordering.mapper.DishMapper;
 import com.luwei.ordering.mapper.RecommendationLogMapper;
 import com.luwei.ordering.mapper.UserMapper;
 import com.luwei.ordering.service.*;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
+
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toMap;
 
 @Slf4j
 @Service
@@ -58,9 +64,22 @@ public class RecommendationServiceImpl implements RecommendationService {
     private final WeatherService weatherService;
     //验证当前用户是否是被推荐用户
     private final TokenService tokenService;
+    //去做request中的参数校验
+    private final Validator validator;
 
     @Override
     public RecommendationResponse recommendDishes(RecommendationRequest request, String token) {
+        //后Agent调用对应工具时间，需要主动触发校验参数
+        if(request == null) throw new BusinessException(ErrorCode.PARAM_ERROR, "推荐请求不能为空");
+        var violations = validator.validate(request);
+        if (!violations.isEmpty()) {
+            String message = violations.stream()
+                    .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                    .sorted()
+                    .collect(Collectors.joining("；"));
+
+            throw new BusinessException(ErrorCode.PARAM_ERROR, message);
+        }
 
         //要是游客直接往下走
         if(request.getUserId() != null){
@@ -153,17 +172,20 @@ public class RecommendationServiceImpl implements RecommendationService {
 
                                            : Map.of();
 
-        //做一个用户输入budget是否存在校验,要是存在的话就根据budget开始砍菜
+        //v1 : 做一个用户输入budget是否存在校验,要是存在的话就根据budget开始
+        /**
+         *  v2:
+         *  这儿已经改成v2版了，v2版出现了一个问题，就是推荐的菜品用户可能是需要数量的
+         *  所以这儿直接改成检索出的单价比预算小就能加入菜单返回给Agent
+         */
+
         BigDecimal budget = request.getBudget();
         if(budget != null){
-            BigDecimal total = BigDecimal.ZERO;
             List<DishEntity> kept = new ArrayList<>();
 
-        //贪心算法进行砍菜与预算的比对
             for (DishEntity dish : dishEntities) {
-                if(total.add(dish.getPrice()).compareTo(budget) <= 0){
+                if(dish.getPrice().compareTo(budget) <= 0){
                     kept.add(dish);
-                    total = total .add(dish.getPrice());
                 }
             }
             if(kept.isEmpty()) return new RecommendationResponse(List.of(),"您的预算有点低，要不加点预算再看看");
@@ -265,4 +287,67 @@ public class RecommendationServiceImpl implements RecommendationService {
         }
         return new RecommendationResponse(dishes , result == null ? null : result.summary());
     }
+
+    @Override
+    public DraftOrderResponse draftOrder(DraftOrderRequest req) {
+        if (req == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "草稿请求不能为空");
+        }
+        if(req.getOrderItems() == null) throw new BusinessException(ErrorCode.PARAM_ERROR, "客户预选菜单不能为空");
+
+        var violations = validator.validate(req);
+        if (!violations.isEmpty()) {
+            String message = violations.stream()
+                                        .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                                        .sorted()
+                                        .collect(Collectors.joining("；"));
+
+            throw new BusinessException(ErrorCode.PARAM_ERROR, message);
+        }
+
+        //收集菜号,一次反查
+        List<Long> dishNumber = req.getOrderItems().stream()
+                .map(OrderItemRequest::getDishNumber)
+                .toList();
+
+        List<DishEntity> dishes = dishMapper.findByIds(dishNumber);
+        Map<Long, DishEntity> dishMap = dishes.stream().collect(toMap(DishEntity::getDishNumber, d -> d));
+
+        for (OrderItemRequest item : req.getOrderItems()) {
+            DishEntity dish = dishMap.get(item.getDishNumber());
+            if (dish == null || dish.getDishStatus() == DishStatus.UNAVAILABLE) {
+                log.warn("菜品不可下单, dishNumber:{}", item.getDishNumber());
+                throw new BusinessException(ErrorCode.DISH_NOT_AVAILABLE);
+            }
+        }
+
+        List<DraftOrderItemDTO> items = new ArrayList<>();
+        BigDecimal totalAmount = BigDecimal.ZERO;
+
+        for (OrderItemRequest item : req.getOrderItems()) {
+            DishEntity dish = dishMap.get(item.getDishNumber());
+            BigDecimal price = dish.getPrice();
+
+            BigDecimal subTotal =
+                    price.multiply(BigDecimal.valueOf(item.getQuantity()));
+
+            // 本项信息齐了，立即组装并加入列表
+            items.add(new DraftOrderItemDTO(
+                    dish.getDishNumber(),
+                    dish.getDishName(),
+                    price,
+                    item.getQuantity(),
+                    subTotal
+            ));
+
+            totalAmount = totalAmount.add(subTotal);
+        }
+
+        BigDecimal budget = req.getBudget();
+        boolean overBudget =
+                budget != null && totalAmount.compareTo(budget) > 0;
+
+        return new DraftOrderResponse(items, totalAmount, budget, overBudget);
+    }
 }
+

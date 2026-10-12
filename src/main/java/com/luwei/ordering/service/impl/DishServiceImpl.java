@@ -145,4 +145,14 @@ public class DishServiceImpl implements DishService {
         }
         return dishConverter.toListItemDTO(entity);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DishListItemDTO> listAvailableDishes() {
+        return dishMapper.findAvailableAll().stream()
+                .map(dishConverter::toListItemDTO)
+                .toList();
+    }
+
+
 }

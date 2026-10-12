@@ -37,4 +37,14 @@ public class OrdersEntity {
      *  订单状态(pending , paid, cancelled)
      */
     private OrderStatus orderStatus;
+
+    /**
+     *  记录订单来自哪份草稿
+     */
+    private String draftId;
+
+    /**
+     *  记录归属，重复确认时检查是否属于当前用户，游客也适用
+     */
+    private String draftOwnerKey;
 }

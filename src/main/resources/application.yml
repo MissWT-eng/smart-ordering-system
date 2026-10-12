@@ -14,6 +14,8 @@ spring:
 
 auth:
   token-ttl-hours: 2
+  draft-ttl-minutes: 15
+
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   configuration:
@@ -53,7 +55,7 @@ rerank:
 
 weather:
   api-key: ${QWEATHER_API_KEY}
-  base-url: https://k25g7fba89.re.qweatherapi.com
+  base-url: ${QWEATHER_BASE_URL}
   city-id: 101060101   # 长春
 
 admin:

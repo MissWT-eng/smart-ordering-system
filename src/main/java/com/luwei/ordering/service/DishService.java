@@ -6,7 +6,7 @@ import com.luwei.ordering.dto.request.DishStatusUpdateRequest;
 import com.luwei.ordering.dto.request.DishUpdateRequest;
 import com.luwei.ordering.dto.response.DishListItemDTO;
 import com.luwei.ordering.dto.response.PageResult;
-
+import java.util.List;
 
 
 public interface DishService {
@@ -15,4 +15,6 @@ public interface DishService {
     void updateDish(Long dishNumber ,DishUpdateRequest request);
     void updateDishStatus(Long dishNumber , DishStatusUpdateRequest request);
     DishListItemDTO getDish(Long dishNumber);
+    List<DishListItemDTO> listAvailableDishes();
+
 }
