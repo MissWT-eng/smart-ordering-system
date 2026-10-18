@@ -4,7 +4,7 @@
 
 项目保留 V1 的菜单、推荐、订单和反馈接口，V2 在现有 Service 之上增加工具调用与草稿确认流程。
 
-> **当前进度（2026-10-13）**：V2 四个工具及草稿确认后端流程已实现，已完成编译与工具层模拟检查；真实模型、HTTP 接口和数据库的完整确认链路待联调验收。会话记忆、流式响应和 Agent 前端仍在计划中。
+> **当前进度（2026-10-18）**：V2 核心点餐闭环已完成主要 HTTP、模型与数据库联调；M2 已接入会话归属校验、跨请求短期记忆、使用计数与过期清理，并完成本轮基础验收。当前会话从创建起固定 30 分钟有效，尚未自动续期；长期画像、流式响应和 Agent 前端待实现。验收范围与限制见[验证记录](docs/m2-memory-verification.md)，不代表整个 M1/M2 计划已全部完成。
 
 ## 技术栈
 
@@ -15,8 +15,9 @@
 | 语言与构建 | Java 17、Maven Wrapper | 后端开发与构建 |
 | Web 框架 | Spring Boot 4.0.8、Spring MVC | REST 接口、参数校验、统一响应 |
 | 数据访问 | MyBatis Spring Boot Starter 4.0.1、MySQL | 菜品、订单、用户、推荐记录与反馈持久化 |
-| 缓存与临时状态 | Redis、Spring Data Redis | 用户令牌、订单草稿及过期管理 |
-| Agent 编排 | LangChain4j 1.19.0；Spring Boot 4 Starter 1.19.0-beta29 | AI Services、工具调用、调用上下文传递 |
+| 缓存与临时状态 | Redis、Spring Data Redis | 用户令牌、订单草稿、聊天会话归属及过期管理 |
+| Agent 编排与记忆 | LangChain4j 1.19.0；Spring Boot 4 Starter 1.19.0-beta29 | AI Services、工具调用、`@MemoryId` 与窗口记忆 |
+| 本地生命周期管理 | Spring `@Scheduled`、`ConcurrentHashMap` | 跟踪会话使用计数，清理空闲且过期的本机记忆 |
 | 对话模型 | DeepSeek `deepseek-chat` | 意图分析、推荐理由、工具选择与回复 |
 | 向量化模型 | BGE-M3（硅基流动 `Pro/BAAI/bge-m3`） | 菜品文本与查询向量化 |
 | 向量检索 | Qdrant；LangChain4j Qdrant 模块 1.19.0-beta29 | 语义召回、辣度与分类等元数据过滤 |
@@ -69,13 +70,28 @@ flowchart TD
 - **重复提交处理**：按 `draftId` 查找已有订单并校验归属；并发创建遇到唯一键冲突时查询并返回已有订单，依赖数据库的 `orders.draft_id` 唯一索引。
 - **失败结果**：未确认、编号不一致、超预算、菜品下架、草稿失效或归属不符时，返回业务原因与后续处理建议。
 
+### M2：短期会话记忆与清理
+
+- **会话编号**：首次请求不传 `conversationId`，后端生成 UUID；后续请求携带返回的编号，继续同一段聊天。同一身份可开启多段独立聊天。
+- **会话归属**：Redis 的 `chat:conversation:<conversationId>` 保存可信 `ownerKey`。复用编号前检查归属；编号不存在或过期返回 HTTP 404，归属不一致返回 HTTP 403。
+- **聊天上下文**：`@MemoryId` 将会话编号交给 `chatMemoryProvider`，每段聊天使用独立的 `MessageWindowChatMemory`，最多保留 20 条消息，包含系统和工具消息。
+- **存储边界**：聊天内容保存在当前 Java 进程内，Redis 保存会话归属；重启会丢失本机聊天上下文，尚未支持多实例共享聊天记忆或完整历史归档。
+- **有效期**：`auth.conversation-ttl-minutes` 默认 30 分钟，从创建时计时。发送后续消息目前不会刷新有效期；自动续期是下一步计划。
+- **清理机制**：请求开始时登记使用计数，并再次检查 Redis 会话存在；在 `finally` 中归还计数。定时任务每轮结束后等待 60 秒，清理计数为零且会话已不存在的记忆，同时移除本地跟踪记录。
+- **调用与故障保护**：正在执行的调用结束后再清理；Redis 检查失败时保留记录，后续重试。使用计数和清理通过同一编号的 `compute` 操作协调。
+
+聊天记忆不代替订单报价、身份或本次确认授权。跨轮确认正式订单仍须提交 `confirmedDraftId`，后端继续检查草稿、归属、预算和菜价。
+
 ## 当前边界与后续计划
 
 | 项目 | 当前状态 |
 | --- | --- |
-| Agent 后端四个工具与确认流程 | 代码已实现，完整确认链路待联调验收 |
-| 跨请求聊天记忆 | 尚未接入；当前确认请求需明确带上草稿编号 |
-| SSE / 流式响应 | 尚未接入；当前返回完整的 `ApiResponse<String>` |
+| Agent 后端四个工具与确认流程 | 核心闭环及主要拒绝、身份、重试、并发场景已联调；完整故障恢复与 V1 回归待补齐 |
+| 跨请求聊天记忆 | 已接入；多轮记忆、同一游客的新旧聊天隔离和不同游客身份隔离已验证 |
+| 会话过期与本机清理 | 已实现固定有效期、定时清理和调用中保护；完成 HTTP 过期测试及临时程序 10 项验证 |
+| 自动续期与同会话并发消息 | 续期尚未实现；使用计数用于清理保护，尚未提供同一聊天多条消息的执行顺序保障 |
+| 长期记忆与用户画像 | 尚未实现；计划先提供注册用户结构化偏好及查看、更正、删除能力 |
+| SSE / 流式响应 | 尚未接入；当前返回完整的 `ApiResponse<AgentChatResponse>` |
 | Agent 前端 | 尚未接入；现有用户端仍调用 V1 推荐、下单接口 |
 | Agent 个性化推荐 | 当前走通用推荐，尚未透传登录用户历史反馈 |
 | 天气工具 | 天气由推荐 Service 内部调用，尚未封装为独立 Agent 工具 |
@@ -106,7 +122,7 @@ flowchart TD
 
 ### Agent 请求示例
 
-请求头使用 `Content-Type: application/json`。普通聊天不传 `confirmedDraftId`：
+请求头使用 `Content-Type: application/json`。首次开启聊天时不传 `conversationId`，普通聊天不传 `confirmedDraftId`：
 
 ```json
 {
@@ -114,16 +130,49 @@ flowchart TD
 }
 ```
 
-查看工具返回的草稿与报价后，由用户明确确认，再发送：
+成功响应的 `data` 包含会话编号与回复文本，结构如下：
 
 ```json
 {
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "conversationId": "<后端返回的实际conversationId>",
+    "reply": "<模型回复文本>"
+  }
+}
+```
+
+继续聊天时带上真实会话编号：
+
+```json
+{
+  "conversationId": "<实际conversationId>",
+  "message": "请复述我刚才说的人数、预算和口味，先不要下单。"
+}
+```
+
+查看草稿与报价后，由用户明确确认，再发送：
+
+```json
+{
+  "conversationId": "<实际conversationId>",
   "message": "确认提交草稿 <实际draftId>",
   "confirmedDraftId": "<实际draftId>"
 }
 ```
 
-将两处占位符替换成同一个真实草稿编号。当前尚无跨请求聊天记忆，`message` 中也需要包含编号；`confirmedDraftId` 用于后端校验确认目标。游客在试算和确认之间需要保持同一 Session Cookie，注册用户需要使用同一用户的有效令牌。修改方案生成新草稿后，必须重新确认新编号。
+将草稿占位符替换成同一个真实草稿编号，`conversationId` 使用该段聊天返回的编号。记忆能提供上下文，`confirmedDraftId` 仍用于后端校验本次确认目标。游客跨轮请求需要保持同一 Session Cookie，注册用户需要使用同一用户的有效令牌。修改方案生成新草稿后，必须重新确认新编号。
+
+外层 `code: 0` 表示聊天请求成功，是否正式下单仍以工具返回的真实订单为准。会话归属、过期和入口参数校验失败发生在模型调用前，会直接返回相应 HTTP 状态及错误码。
+
+## 本轮验证
+
+- 核心点餐：草稿核价、确认下单、重复确认、超预算与价格变化拒绝、确认目标匹配及主要身份场景已有联调结果；同一草稿并发 HTTP 请求返回同一订单，数据库为一笔主订单和一套明细。
+- 短期记忆：真实模型多轮记忆、同一游客的新旧聊天隔离、两个独立游客会话的双向越权拒绝及各自记忆读取均通过。
+- 过期与清理：真实 HTTP 过期后返回 404；另用实际 Controller、Service、LangChain4j 记忆和真实 Redis 完成 10 项临时验证，覆盖空闲清理、调用中保护、竞争和故障重试。
+
+慢模型和 Redis 故障采用可控模拟，临时验证程序及产物已删除。上述结果不是完整自动化回归或持续集成记录；详细范围、复测步骤及待验收项见[短期记忆验证记录](docs/m2-memory-verification.md)。
 
 ## 本地运行
 
@@ -189,7 +238,7 @@ smart-ordering-system
 │   ├── dto/                       请求、工具结果、草稿快照与订单响应
 │   ├── entity/                    数据库实体
 │   ├── mapper/                    MyBatis Mapper
-│   └── service/                   检索推荐、草稿、订单与身份业务逻辑
+│   └── service/                   检索推荐、草稿、订单、身份与会话记忆管理
 ├── src/main/resources
 │   ├── application.yml            服务连接与模型配置
 │   ├── mapper/                    Mapper XML
@@ -203,6 +252,7 @@ smart-ordering-system
 - [V1 需求与验收标准](docs/requirements.md)
 - [V2 Agent 阶段规划](docs/v2-requirements.md)
 - [会话记忆与流式聊天待办](docs/TODO.md)
+- [短期记忆验证记录（2026-10-18）](docs/m2-memory-verification.md)
 - [业务建模](docs/智能点餐系统业务建模.md)
 - [数据库设计思路](docs/智能点餐系统数据库设计思路.md)
 - [早期建表语句参考](docs/智能点餐系统数据库建表语句.md)

@@ -7,6 +7,7 @@ public enum ErrorCode {
     SUCCESS(0 , "success"),
     PARAM_ERROR(400 ,"参数错误"),
     DRAFT_NOT_FOUND_OR_EXPIRED(404, "草稿不存在或已过期"),
+    CONVERSATION_NOT_FOUND_OR_EXPIRED(404, "对话不存在或已过期"),
     BUDGET_EXCEEDED(400, "超出预算"),
     DRAFT_DISH_INFO_ERROR(400, "菜品价格发生变化"),
     NOT_EXIST(404 , "访问资源不存在"),

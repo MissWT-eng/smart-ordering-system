@@ -5,6 +5,7 @@ import com.luwei.ordering.agent.tool.DishTools;
 import com.luwei.ordering.service.QueryAnalyzer;
 import com.luwei.ordering.service.RecommendationAssistant;
 import dev.langchain4j.data.segment.TextSegment;
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.store.embedding.EmbeddingStore;
@@ -43,6 +44,11 @@ public class AiConfig {
         return AiServices.builder(OrderingAgent.class)
                          .chatModel(chatModel)
                          .tools(dishTools)
+                         .chatMemoryProvider(memoryId ->
+                                             MessageWindowChatMemory.builder()
+                                                                    .id(memoryId)
+                                                                    .maxMessages(20)
+                                                                    .build())
                          .build();
     }
 }

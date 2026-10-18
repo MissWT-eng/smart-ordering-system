@@ -4,7 +4,10 @@ import com.luwei.ordering.agent.OrderingAgent;
 import com.luwei.ordering.common.exception.BusinessException;
 import com.luwei.ordering.common.exception.ErrorCode;
 import com.luwei.ordering.dto.request.AgentChatRequest;
+import com.luwei.ordering.dto.response.AgentChatResponse;
 import com.luwei.ordering.dto.response.ApiResponse;
+import com.luwei.ordering.service.ConversationMemoryService;
+import com.luwei.ordering.service.ConversationService;
 import com.luwei.ordering.service.TokenService;
 import dev.langchain4j.invocation.InvocationParameters;
 import dev.langchain4j.service.Result;
@@ -26,9 +29,11 @@ public class AgentChatController {
     private final OrderingAgent orderingAgent;
     private final HttpServletRequest httpServletRequest;
     private final TokenService tokenService;
+    private final ConversationService conversationService;
+    private final ConversationMemoryService conversationMemoryService;
 
     @PostMapping("/chat")
-    public ApiResponse<String> chat(@RequestBody @Valid AgentChatRequest req){
+    public ApiResponse<AgentChatResponse> chat(@RequestBody @Valid AgentChatRequest req){
         String token = httpServletRequest.getHeader("X-User-Token");
         String ownerKey;
         if(token == null){
@@ -60,8 +65,13 @@ public class AgentChatController {
 
         log.info("agent chat, len={}", req.getMessage().length());
 
+        String conversationId = conversationService.resolveConversationId(
+                req.getConversationId(), ownerKey);
+
+        conversationMemoryService.beginUse(conversationId);
+
         try{
-            Result<String> result = orderingAgent.chat(req.getMessage(),parameters);
+            Result<String> result = orderingAgent.chat(req.getMessage(), parameters, conversationId);
             log.info("当前Agent工具调用次数:{}", result.toolExecutions().size());
             for (ToolExecution execution : result.toolExecutions()) {
                 log.info("Agent调用工具:{}", execution.request().name());
@@ -71,10 +81,18 @@ public class AgentChatController {
                         execution.result());
             }
 
-            return ApiResponse.success(result.content());
+            return ApiResponse.success(
+                    new AgentChatResponse(conversationId, result.content()));
+
         }
 
         catch (Exception e){log.warn("当前调用agent出现问题", e);}
+
+        finally {
+            conversationMemoryService.endUse(conversationId);
+        }
+
         return ApiResponse.error(ErrorCode.LLM_SERVICE_UNAVAILABLE);
     }
+
 }
