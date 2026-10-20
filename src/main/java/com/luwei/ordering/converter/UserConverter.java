@@ -12,7 +12,6 @@ public interface UserConverter {
     UserListItemDTO toListItemDTO(UserEntity entity);
 
     @Mapping(target = "userId", ignore = true)
-    @Mapping(target = "userStatus", ignore = true)
     UserEntity toEntity(UserAddRequest request);
 
 }

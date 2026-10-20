@@ -6,6 +6,8 @@ import lombok.Getter;
 public enum ErrorCode {
     SUCCESS(0 , "success"),
     PARAM_ERROR(400 ,"参数错误"),
+    CONVERSATION_BUSY(409,"当前对话正在回复中"),
+    CONVERSATION_CONTEXT_LOST(409,"对话上下文已失效，请开启新对话"),
     DRAFT_NOT_FOUND_OR_EXPIRED(404, "草稿不存在或已过期"),
     CONVERSATION_NOT_FOUND_OR_EXPIRED(404, "对话不存在或已过期"),
     BUDGET_EXCEEDED(400, "超出预算"),

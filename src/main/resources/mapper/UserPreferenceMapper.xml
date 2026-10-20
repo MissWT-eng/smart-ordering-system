@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.luwei.ordering.mapper.UserPreferenceMapper">
+
+    <insert id="saveByUserId">
+        INSERT INTO user_preference (
+            user_id,
+            spicy_level,
+            preference_text
+        )
+        VALUES (
+                   #{userId},
+                   #{spicyLevel, jdbcType=VARCHAR},
+                   #{preferenceText, jdbcType=VARCHAR}
+               )
+            ON DUPLICATE KEY UPDATE
+                                 spicy_level = #{spicyLevel, jdbcType=VARCHAR},
+                                 preference_text = #{preferenceText, jdbcType=VARCHAR}
+    </insert>
+
+    <delete id="deleteByUserId">
+        DELETE FROM user_preference WHERE user_id = #{userId}
+    </delete>
+
+    <select id="findByUserId" resultType="com.luwei.ordering.entity.UserPreferenceEntity">
+        SELECT user_id, spicy_level, preference_text, created_at, updated_at
+        FROM user_preference
+        WHERE user_id = #{userId}
+    </select>
+
+</mapper>

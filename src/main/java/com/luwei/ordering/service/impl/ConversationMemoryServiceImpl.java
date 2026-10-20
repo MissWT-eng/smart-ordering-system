@@ -12,7 +12,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -21,7 +20,6 @@ public class ConversationMemoryServiceImpl implements ConversationMemoryService 
     private final StringRedisTemplate redisTemplate;
     private final ConcurrentHashMap<String, Integer> activeCalls =
             new ConcurrentHashMap<>();
-
 
     @Override
     public void clearConversationMemory(String conversationId) {
@@ -69,7 +67,10 @@ public class ConversationMemoryServiceImpl implements ConversationMemoryService 
             if(redisTemplate.opsForValue().get(redisKey) == null){
                 throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND_OR_EXPIRED);
             }
-            return olderCount == null ? 1 : olderCount + 1;
+            if (olderCount != null && olderCount > 0) {
+                throw new BusinessException(ErrorCode.CONVERSATION_BUSY);
+            }
+            return 1;
         });
     }
 
@@ -83,7 +84,5 @@ public class ConversationMemoryServiceImpl implements ConversationMemoryService 
             return count - 1;
         });
     }
-
-
 
 }

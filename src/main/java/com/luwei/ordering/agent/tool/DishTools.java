@@ -1,5 +1,6 @@
 package com.luwei.ordering.agent.tool;
 
+import com.luwei.ordering.common.enums.SpicyLevel;
 import com.luwei.ordering.common.exception.BusinessException;
 import com.luwei.ordering.common.exception.ErrorCode;
 import com.luwei.ordering.dto.request.DraftOrderRequest;
@@ -11,11 +12,13 @@ import com.luwei.ordering.service.RecommendationService;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.invocation.InvocationParameters;
+import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -23,6 +26,7 @@ public class DishTools {
     private final DishService dishService;
     private final RecommendationService recommendationService;
     private final OrderDraftService orderDraftService;
+    private final Validator validator;
 
     @Tool("查询菜单:返回当前所有在售菜品(名称、价格、分类、简介)，用于帮顾客点餐")
     public String queryMenu() {
@@ -43,7 +47,7 @@ public class DishTools {
         return sb.toString();
     }
 
-    @Tool("推荐菜品:根据顾客口味偏好、人数、预算调用后端推荐引擎，给出菜品与理由")
+    @Tool("推荐候选菜品:根据顾客口味偏好、人数、预算调用后端推荐引擎，返回候选菜品、单价及理由，不提供组合报价")
     public RecommendationToolResult recommendDish(
             @P(value = "顾客口味/场景偏好，如『清淡下饭』『来点辣的』", required = true) String preference,
             @P(value = "用餐人数", required = false) Integer peopleNum,
@@ -100,7 +104,10 @@ public class DishTools {
                 RecommendationToolResult.Status.SUCCESS,
                 resp.getDishes(),
                 resp.getSummary(),
-                "展示候选菜品及单价，询问顾客选择和数量；尚未创建订单。"
+                "只展示候选菜品、单价和推荐理由，询问顾客选择和数量；"
+                        + "不汇总组合金额，不提供估算总价、剩余预算或整单是否在预算内的结论。"
+                        + "需要组合报价时，先明确菜品及各自数量，再调用 draftOrder，以真实试算结果为准；"
+                        + "顾客要求只推荐、不试算时，不调用 draftOrder、不生成草稿，也不提供组合金额。尚未创建订单。"
         );
     }
 
@@ -269,5 +276,104 @@ public class DishTools {
                 "已返回该草稿对应的订单",
                 "依据返回订单的实际编号、状态、金额和明细回复用户");
     }
-    
+
+    @Tool("当顾客明确表达长期口味或希望以后记住时，整理待确认的口味候选；仅提出候选，不保存画像")
+    public UserPreferenceProposalToolResult proposeUserPreference(
+            @P(value = "本次提出的长期辣度，不提时不传", required = false)SpicyLevel spicyLevel,
+            @P(
+                    value = "更新后的完整长期补充口味说明，保留原画像中未被本次修改或否定的偏好；最多200字，未涉及该字段时不传",
+                    required = false
+            )
+            String preferenceText,
+            InvocationParameters parameters
+            )
+    {
+
+        if (parameters == null) {
+            return new UserPreferenceProposalToolResult(
+                    UserPreferenceProposalToolResult.Status.INVALID_ARGUMENTS,
+                    null,
+                    "当前必要参数为空",
+                    "当前参数不合法，停止构建用户长久画像");
+        }
+
+        String ownerKey = parameters.get("ownerKey");
+        if (ownerKey == null || ownerKey.isBlank()) {
+            return new UserPreferenceProposalToolResult(
+                    UserPreferenceProposalToolResult.Status.INVALID_ARGUMENTS,
+                    null,
+                    "缺少调用身份",
+                    "停止构建用户画像"
+            );
+        }
+
+        Long userId = parameters.get("userId");
+        if (userId == null) {
+            return new UserPreferenceProposalToolResult(
+                    UserPreferenceProposalToolResult.Status.LOGIN_REQUIRED,
+                    null,
+                    "请先登录后设置长期口味画像",
+                    "提示顾客先登录，当前未生成待保存候选"
+            );
+        }
+
+        UserPreferenceDTO userPreference = parameters.get("userPreference");
+
+        if(preferenceText != null && preferenceText.isBlank()){
+            return new UserPreferenceProposalToolResult(
+                    UserPreferenceProposalToolResult.Status.INVALID_ARGUMENTS,
+                    null,
+                    "当前必要参数为空",
+                    "当前参数不合法，停止构建用户长久画像");
+        }
+
+
+        if(spicyLevel == null && preferenceText == null){
+            return new UserPreferenceProposalToolResult(
+                    UserPreferenceProposalToolResult.Status.INVALID_ARGUMENTS,
+                    null,
+                    "本次没有提供待更新的长期口味",
+                    "请顾客说明需要更新的长期偏好，当前未生成候选"
+            );
+        }
+
+
+        UserPreferenceProposalDTO proposal =
+                userPreference == null
+                        ? new UserPreferenceProposalDTO()
+                        : new UserPreferenceProposalDTO(userPreference.getSpicyLevel(),
+                                                        userPreference.getPreferenceText());
+
+
+        if (spicyLevel != null) {
+            proposal.setSpicyLevel(spicyLevel);
+        }
+
+        if (preferenceText != null) {
+            proposal.setPreferenceText(preferenceText);
+        }
+
+
+        var violations = validator.validate(proposal);
+        if (!violations.isEmpty()) {
+            String message = violations.stream()
+                    .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                    .sorted()
+                    .collect(Collectors.joining("；"));
+
+            return new UserPreferenceProposalToolResult(
+                    UserPreferenceProposalToolResult.Status.INVALID_ARGUMENTS,
+                    null,
+                    message,
+                    "请根据校验结果调整口味说明，当前尚未保存"
+            );
+        }
+
+        return new UserPreferenceProposalToolResult(
+                UserPreferenceProposalToolResult.Status.SUCCESS,
+                proposal,
+                "这是本次用户的长期口味画像",
+                "询问用户是否需要保存，当前已经生成待保存候选"
+        );
+    }
 }

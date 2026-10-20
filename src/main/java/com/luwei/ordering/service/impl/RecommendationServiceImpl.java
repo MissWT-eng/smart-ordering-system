@@ -17,7 +17,6 @@ import com.luwei.ordering.mapper.DishMapper;
 import com.luwei.ordering.mapper.RecommendationLogMapper;
 import com.luwei.ordering.mapper.UserMapper;
 import com.luwei.ordering.service.*;
-import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
