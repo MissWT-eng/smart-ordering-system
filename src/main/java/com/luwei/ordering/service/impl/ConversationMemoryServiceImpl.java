@@ -5,12 +5,15 @@ import com.luwei.ordering.common.exception.BusinessException;
 import com.luwei.ordering.common.exception.ErrorCode;
 import com.luwei.ordering.service.ConversationMemoryService;
 import dev.langchain4j.memory.ChatMemory;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 
 @Slf4j
 @Service
@@ -20,6 +23,19 @@ public class ConversationMemoryServiceImpl implements ConversationMemoryService 
     private final StringRedisTemplate redisTemplate;
     private final ConcurrentHashMap<String, Integer> activeCalls =
             new ConcurrentHashMap<>();
+
+    @Value("${auth.max-cached-conversations}")
+    private int maxCachedConversations;
+
+    private Semaphore cachedConversationSlots;
+
+    @PostConstruct
+    public void initCachedConversationSlots() {
+        if (maxCachedConversations <= 0){
+            throw new IllegalArgumentException("max-cached-conversations 必须大于 0");
+        }
+        cachedConversationSlots = new Semaphore(maxCachedConversations);
+    }
 
     @Override
     public void clearConversationMemory(String conversationId) {
@@ -46,6 +62,7 @@ public class ConversationMemoryServiceImpl implements ConversationMemoryService 
                          return count;
                }
                clearConversationMemory(key);
+               cachedConversationSlots.release();
                return null;
                }
 
@@ -69,6 +86,9 @@ public class ConversationMemoryServiceImpl implements ConversationMemoryService 
             }
             if (olderCount != null && olderCount > 0) {
                 throw new BusinessException(ErrorCode.CONVERSATION_BUSY);
+            }
+            if(olderCount == null && ! cachedConversationSlots.tryAcquire()){
+                throw new BusinessException(ErrorCode.CONVERSATION_CAPACITY_EXCEEDED);
             }
             return 1;
         });

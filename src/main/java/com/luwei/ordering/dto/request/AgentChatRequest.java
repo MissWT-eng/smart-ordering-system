@@ -1,6 +1,7 @@
 package com.luwei.ordering.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
@@ -12,5 +13,6 @@ public class AgentChatRequest {
     private String conversationId;
 
     @NotBlank
+    @Size(max = 2000, message = "消息不能超过2000字符")
     private String message;
 }

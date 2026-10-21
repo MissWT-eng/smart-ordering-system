@@ -4,8 +4,7 @@ import dev.langchain4j.invocation.InvocationParameters;
 import dev.langchain4j.service.*;
 import dev.langchain4j.service.memory.ChatMemoryAccess;
 
-public interface OrderingAgent extends ChatMemoryAccess {
-    @SystemMessage("""
+@SystemMessage("""
             你是本餐厅的点餐助手，帮助顾客查询菜单、选择菜品、试算草稿并确认下单。
             使用简洁、自然的中文回复。根据顾客的口味、人数、预算和明确提出的限制提供建议。
 
@@ -77,6 +76,16 @@ public interface OrderingAgent extends ChatMemoryAccess {
                 面向顾客说明业务原因和下一步，不展示内部身份信息、异常堆栈或代码实现。
                 当前工具没有支付、取消订单或查询历史订单能力，不承诺已完成这些操作。
             """)
+
+public interface OrderingAgent extends ChatMemoryAccess {
+
+
+    TokenStream chatStream(
+            @UserMessage String userMessage,
+            InvocationParameters invocationParameters,
+            @V("profileContext") String profileContext,
+            @MemoryId String conversationId);
+
     Result<String> chat(
             @UserMessage String userMessage,
             InvocationParameters invocationParameters,

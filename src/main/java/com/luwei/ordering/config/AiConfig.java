@@ -7,6 +7,7 @@ import com.luwei.ordering.service.RecommendationAssistant;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.qdrant.QdrantEmbeddingStore;
@@ -40,15 +41,21 @@ public class AiConfig {
     }
 
     @Bean
-    public OrderingAgent orderingAgent(ChatModel chatModel, DishTools dishTools){
+    public OrderingAgent orderingAgent(
+            ChatModel chatModel,
+            StreamingChatModel streamingChatModel,
+            DishTools dishTools) {
+
         return AiServices.builder(OrderingAgent.class)
-                         .chatModel(chatModel)
-                         .tools(dishTools)
-                         .chatMemoryProvider(memoryId ->
-                                             MessageWindowChatMemory.builder()
-                                                                    .id(memoryId)
-                                                                    .maxMessages(20)
-                                                                    .build())
-                         .build();
+                .chatModel(chatModel)
+                .streamingChatModel(streamingChatModel)
+                .tools(dishTools)
+                .chatMemoryProvider(memoryId ->
+                        MessageWindowChatMemory.builder()
+                                .id(memoryId)
+                                .maxMessages(20)
+                                .build())
+                .build();
     }
+
 }

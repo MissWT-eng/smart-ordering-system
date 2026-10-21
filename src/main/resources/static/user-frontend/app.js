@@ -1,13 +1,13 @@
 /* =========================================================
- * 智能点餐系统 · 前端（Agent-first）
- * 纯原生 JS，后端地址 http://localhost:8080
+ * 智能点餐系统 · V1 页面与共享登录功能（V2 聊天见 agent.js）
+ * 原生 JS，同源访问 Spring Boot
  * 统一响应结构：{ code: 0, msg: "success", data: {...} }
  * 首页双形态：提问态 ⇄ 结果态（对话式切换）
  * 收起结果不丢数据，可一键返回，不重复请求
  * ========================================================= */
 
 // 前端由 Spring Boot 托管（/static/user-frontend），同源直接用相对路径；
-// 万一用 file:// 直接打开，再退回 localhost:8080，避免双击 html 就废了
+// 保留 V1 的 file:// 回退；V2 ES Modules 需要通过 HTTP 打开。
 const API_BASE =
   location.protocol === "file:" ? "http://localhost:8080" : "";
 
@@ -24,13 +24,18 @@ function categoryOf(dish) {
 
 /* ---------- 全局状态 ---------- */
 const state = {
-  user: JSON.parse(localStorage.getItem("ordering_user") || "null"), // 登录用户
+  user: readStoredUser(), // 登录用户；损坏的浏览器缓存不阻断整个页面
   cart: new Map(),   // dishNumber -> { dish, qty }
   serverOrders: [],  // 最近一次拉取的账号订单，供「再来一单 / 评分」取用
-  page: "home",
+  page: "agent",
   // all：一次性拉回的在售菜品缓存；分页和分类都在前端做
   menu: { pageNum: 1, pageSize: 12, totalPages: 1, category: "", all: null },
 };
+
+function readStoredUser() {
+  try { return JSON.parse(localStorage.getItem("ordering_user") || "null"); }
+  catch { return null; }
+}
 
 /* ---------- 工具函数 ---------- */
 const $ = (sel) => document.querySelector(sel);
@@ -51,6 +56,10 @@ function toast(msg) {
 
 /** 统一请求封装：自动处理 code/msg，非 0 弹 msg 并抛错；401 自动清登录态 */
 async function api(path, options = {}) {
+  const requestToken = options.headers?.["X-User-Token"];
+  const expireThisIdentity = () => {
+    if (requestToken && state.user?.token === requestToken) handleAuthExpired();
+  };
   let res;
   try {
     res = await fetch(API_BASE + path, {
@@ -63,7 +72,7 @@ async function api(path, options = {}) {
     throw e;
   }
   if (!res.ok && res.status === 401) {
-    handleAuthExpired();
+    expireThisIdentity();
     toast("登录已失效，请重新登录");
     throw new Error("unauthorized");
   }
@@ -75,7 +84,7 @@ async function api(path, options = {}) {
     throw e;
   }
   if (body.code !== 0) {
-    if (body.code === 401) handleAuthExpired(); // token 失效：清登录态并引导重新登录
+    if (body.code === 401) expireThisIdentity(); // 旧身份的延迟响应不能清掉新账号
     toast(body.msg || "请求失败");
     throw new Error(body.msg || "request failed");
   }
@@ -93,6 +102,7 @@ function handleAuthExpired() {
   state.user = null;
   localStorage.removeItem("ordering_user");
   renderLoginBtn();
+  window.dispatchEvent(new Event("ordering:auth-changed"));
   openModal("loginModal");
   refreshCurrentPage(); // 订单页要退回"去登录"空态，不能留着旧账号的单
 }
@@ -125,14 +135,20 @@ const esc = (s) =>
  * ========================================================= */
 function switchPage(page) {
   state.page = page;
+  document.body.classList.toggle("agent-mode", page === "agent");
   document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
   $("#page-" + page).classList.add("active");
-  document.querySelectorAll(".nav-btn[data-page]").forEach((b) =>
-    b.classList.toggle("active", b.dataset.page === page)
-  );
+  document.querySelectorAll(".nav-btn[data-page]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.page === page);
+    if (b.dataset.page === page) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  });
   if (page === "menu") loadMenu({ refresh: true }); // 每次进菜单页拉一次最新的菜
   if (page === "orders") { loadOrders(); startOrderPolling(); } else { stopOrderPolling(); }
   if (page === "home" || page === "menu") refreshCartUI(); // 跨页回来时同步勾选
+  else renderCartBar();
+  document.querySelector(".container").classList.toggle("agent-container", page === "agent");
+  window.dispatchEvent(new CustomEvent("ordering:page-changed", { detail: page }));
 }
 
 document.querySelectorAll(".nav-btn[data-page]").forEach((btn) => {
@@ -156,37 +172,49 @@ $("#loginSubmit").addEventListener("click", submitLogin);
 $("#loginPhone").addEventListener("keydown", (e) => { if (e.key === "Enter") submitLogin(); });
 $("#loginNick").addEventListener("keydown", (e) => { if (e.key === "Enter") submitLogin(); });
 
+let loginPending = false;
 async function submitLogin() {
+  if (loginPending) return;
   const phone = $("#loginPhone").value.trim();
   const nick = $("#loginNick").value.trim();
   if (!/^1\d{10}$/.test(phone)) {
     toast("请输入正确的 11 位手机号");
     return;
   }
+  loginPending = true;
+  $("#loginSubmit").disabled = true;
   try {
     const data = await api("/users/identify", {
       method: "POST",
       body: JSON.stringify({ phoneNumber: phone, ...(nick ? { nickName: nick } : {}) }),
     });
+    if (!data?.token || !data.userId) {
+      toast("登录凭证不完整，请重新登录");
+      return;
+    }
     // data.token 是后续受保护接口的凭证（X-User-Token），必须存下来
     state.user = data;
     localStorage.setItem("ordering_user", JSON.stringify(data));
     closeModal("loginModal");
     renderLoginBtn();
-    if (!data.token) toast("未返回 token，请重新登录");
+    window.dispatchEvent(new Event("ordering:auth-changed"));
     toast(`欢迎，${data.nickName || data.phoneNumber}`);
     refreshCurrentPage(); // 在订单页登录的话，立刻换成这个账号的订单
   } catch (e) { /* msg 已提示 */ }
+  finally { loginPending = false; $("#loginSubmit").disabled = false; }
 }
 
 function renderLoginBtn() {
   $("#navLoginBtn").textContent = state.user
     ? (state.user.nickName || state.user.phoneNumber)
     : "登录";
+  $("#navAccountHint").textContent = state.user ? "查看账户与专属口味" : "留住你的专属口味";
 }
 
 /** 登录态变化后刷新当前页：否则订单页会一直停在上一个账号的列表上 */
 function refreshCurrentPage() {
+  state.serverOrders = [];
+  $("#orderList").replaceChildren();
   if (state.page === "orders") loadOrders();
 }
 
@@ -201,8 +229,9 @@ async function openUserModal() {
   openModal("userModal");
   try {
     const fresh = await api(`/users/${u.userId}`, { headers: authHeaders() });
+    if (state.user?.token !== u.token || state.user?.userId !== u.userId) return;
     // 接口返回不含 token（GET /users/{id} 不签发），保留本地 token
-    state.user = { ...state.user, ...fresh, token: state.user.token };
+    state.user = { ...u, ...fresh, token: u.token };
     localStorage.setItem("ordering_user", JSON.stringify(state.user));
     renderUserModal(state.user);
   } catch (e) { /* 失败就用缓存数据，msg 已提示 */ }
@@ -224,6 +253,7 @@ $("#logoutBtn").addEventListener("click", () => {
   localStorage.removeItem("ordering_user");
   closeModal("userModal");
   renderLoginBtn();
+  window.dispatchEvent(new Event("ordering:auth-changed"));
   refreshCurrentPage();
   toast("已退出登录");
 });
@@ -516,7 +546,8 @@ rail.addEventListener("wheel", (e) => {
 /* =========================================================
  * 浏览菜单（兜底入口）：分页 + 分类筛选
  * ========================================================= */
-const MENU_FETCH_SIZE = 200;
+const MENU_FETCH_SIZE = 100; // 与后端 @Max(100) 一致；超过一页时继续读取。
+let menuLoadVersion = 0;
 
 /**
  * 一次拉全量 → 前端分类 → 前端分页
@@ -525,13 +556,22 @@ const MENU_FETCH_SIZE = 200;
  * 而第 2 页其实有 —— 用户会以为这家店不做汤。
  */
 async function loadMenu(opts = {}) {
+  const version = ++menuLoadVersion;
   if (opts.refresh) state.menu.all = null; // 进页面时拉最新；切分类/翻页走缓存
   $("#menuLoading").classList.remove("hidden");
   try {
     if (!state.menu.all) {
       const data = await api(`/dishes?pageNum=1&pageSize=${MENU_FETCH_SIZE}&status=available`);
-      state.menu.all = data.list || [];
+      const dishes = [...(data.list || [])];
+      for (let page = 2; page <= (data.totalPages || 1); page++) {
+        if (version !== menuLoadVersion) return;
+        const next = await api(`/dishes?pageNum=${page}&pageSize=${MENU_FETCH_SIZE}&status=available`);
+        dishes.push(...(next.list || []));
+      }
+      if (version !== menuLoadVersion) return;
+      state.menu.all = Array.from(new Map(dishes.map((dish) => [dish.dishNumber, dish])).values());
     }
+    if (version !== menuLoadVersion) return;
 
     const { pageSize, category, all } = state.menu;
     const filtered = category ? all.filter((d) => d.category === category) : all;
@@ -558,8 +598,13 @@ async function loadMenu(opts = {}) {
     $("#menuNext").disabled = pageNum >= totalPages;
     // 只有一页时分页器是纯噪音（两个灰按钮 + "1 / 1"）
     $("#menuPager").classList.toggle("hidden", totalPages <= 1);
-  } catch (e) { /* msg 已提示 */ } finally {
-    $("#menuLoading").classList.add("hidden");
+  } catch (e) {
+    if (version !== menuLoadVersion) return;
+    $("#menuCount").textContent = "菜单暂时不可用";
+    $("#menuCards").innerHTML = '<div class="empty-tip" style="grid-column:1/-1">菜单加载失败，请稍后重新进入菜单页。</div>';
+    $("#menuPager").classList.add("hidden");
+  } finally {
+    if (version === menuLoadVersion) $("#menuLoading").classList.add("hidden");
   }
 }
 
@@ -586,7 +631,7 @@ function renderCartBar() {
   });
   $("#cartCount").textContent = count;
   $("#cartTotal").textContent = fmtMoney(total);
-  const empty = state.cart.size === 0;
+  const empty = state.cart.size === 0 || state.page === "agent";
   $("#cartBar").classList.toggle("hidden", empty);
   document.body.classList.toggle("has-cart", !empty); // 底部留白跟着购物车栏走
 }
@@ -637,7 +682,7 @@ function loadGuestOrders() {
 }
 
 function saveGuestOrder(order) {
-  const list = loadGuestOrders();
+  const list = loadGuestOrders().filter((existing) => existing.orderNum !== order.orderNum);
   list.unshift({
     orderNum: order.orderNum,
     orderTime: order.orderTime,
@@ -898,6 +943,7 @@ function reorder(order) {
  * 我的订单
  * ========================================================= */
 async function loadOrders() {
+  const owner = state.user;
   renderGuestOrders(); // 本机游客单始终显示（不管有没有登录）
   if (!state.user) {
     $("#orderList").innerHTML = "";
@@ -908,9 +954,10 @@ async function loadOrders() {
   }
   $("#emptyLoginBtn").classList.add("hidden");
   try {
-    const data = await api(`/orders/${state.user.userId}?pageNum=1&pageSize=10`, {
-      headers: authHeaders(), // GET /orders/{userId} 需要 X-User-Token
+    const data = await api(`/orders/${owner.userId}?pageNum=1&pageSize=10`, {
+      headers: { "X-User-Token": owner.token }, // 只使用本次请求所属身份
     });
+    if (state.user?.token !== owner.token || state.user?.userId !== owner.userId) return;
     const list = data.list || [];
     const box = $("#orderList");
     box.innerHTML = "";
@@ -999,4 +1046,19 @@ if (state.user && !state.user.token) {
 }
 renderLoginBtn();
 renderCartBar();
-switchPage("home");
+window.OrderingUI = Object.freeze({
+  api, authHeaders, toast, switchPage, handleAuthExpired,
+  getUser: () => state.user,
+  getApiBase: () => API_BASE,
+  openLogin: () => openModal("loginModal"),
+  rememberAgentOrder: (order) => { if (!state.user) saveGuestOrder(order); },
+});
+window.addEventListener("storage", (event) => {
+  if (event.key !== "ordering_user") return;
+  state.user = readStoredUser();
+  if (state.user && !state.user.token) state.user = null;
+  renderLoginBtn();
+  window.dispatchEvent(new Event("ordering:auth-changed"));
+  refreshCurrentPage();
+});
+switchPage("agent");

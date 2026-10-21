@@ -43,7 +43,8 @@ public class WebConfig implements WebMvcConfigurer {
                         "/orders",           // 游客下单（POST 公开；GET /orders/{userId} 仍受保护）
                         "/recommendations",  // 游客可推荐
                         "/feedback",         // 当前公开
-                        "/agent/chat",       // V2 Agent 入口（内部自己处理游客/注册）
+                        "/agent/chat",
+                        "/agent/chat/stream",// V2 Agent 入口（内部自己处理游客/注册）
                         //商户端交给 AdminInterceptor，避免被 auth 误拦
                         "/admin/**"
                 );

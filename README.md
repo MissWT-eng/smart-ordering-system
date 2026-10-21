@@ -4,7 +4,20 @@
 
 项目保留 V1 的菜单、推荐、订单和反馈接口，V2 在现有 Service 之上增加工具调用与草稿确认流程。
 
-> **当前进度（2026-10-20）**：V2 核心点餐闭环已完成主要 HTTP、模型与数据库联调；M2 已接入短期记忆、滑动续期、同会话并发拒绝与实例失效提示。注册用户长期画像已完成本人管理接口、Agent 默认口味读取及待确认候选工具；候选生成不会直接保存画像。下一步接入结构化候选响应与确认保存衔接，随后完善容量边界、流式响应和 Agent 前端。验收范围见[会话验证记录](docs/m2-memory-verification.md)和[长期画像验证记录](docs/m2-preference-verification.md)，不代表整个 M1/M2 计划已全部完成。
+> **当前进度（2026-10-21）**：M2 首版核心范围已完成收尾验收。新版真实页面已走通多轮推荐、数量与菜品调整、98→106→80 元报价、明确确认下单，以及口味候选保存、新对话读取和清除。Java 32 项及前端 18 项测试通过；本机缓存会话默认上限 100，另通过 12 项受控与 11 项真实 HTTP 容量检查。过程、数据库核对、截图和清理见[收尾记录](docs/m2-closeout-verification.md)。候选数量偏差仍待优化，M1 故障恢复和全面 V1 回归另行推进。
+
+![Agent 点餐首页](docs/images/agent-refined-desktop.png)
+
+<details>
+<summary>查看真实下单与画像跨会话验收截图</summary>
+
+下图来自真实页面、模型和数据库联调：明确确认后创建 80 元订单；新对话读取长期口味，但不继承上一段的临时人数和预算。专用测试数据已在验收后清理。
+
+![真实订单回执](docs/images/m2-order-receipt-20261021.png)
+
+![新会话读取长期口味](docs/images/m2-profile-new-conversation-20261021.png)
+
+</details>
 
 ## 技术栈
 
@@ -13,17 +26,17 @@
 | 层次 | 当前选型 | 用途 |
 | --- | --- | --- |
 | 语言与构建 | Java 17、Maven Wrapper | 后端开发与构建 |
-| Web 框架 | Spring Boot 4.0.8、Spring MVC | REST 接口、参数校验、统一响应 |
+| Web 框架 | Spring Boot 4.0.8、Spring MVC | REST 接口、参数校验、统一响应、SseEmitter 流式输出 |
 | 数据访问 | MyBatis Spring Boot Starter 4.0.1、MySQL | 菜品、订单、用户、长期口味画像、推荐记录与反馈持久化 |
 | 缓存与临时状态 | Redis、Spring Data Redis、Lua | 用户令牌、订单草稿、会话归属与实例元数据、原子校验及续期 |
 | Agent 编排与记忆 | LangChain4j 1.19.0；Spring Boot 4 Starter 1.19.0-beta29 | AI Services、工具调用、`@MemoryId` 与窗口记忆 |
-| 本地生命周期管理 | Spring `@Scheduled`、`ConcurrentHashMap` | 同会话并发拒绝、使用状态跟踪与空闲过期记忆清理 |
+| 本地生命周期管理 | Spring `@Scheduled`、`ConcurrentHashMap`、`Semaphore` | 同会话并发拒绝、缓存会话总量限制、使用状态跟踪与空闲过期记忆清理 |
 | 对话模型 | DeepSeek `deepseek-chat` | 意图分析、推荐理由、工具选择与回复 |
 | 向量化模型 | BGE-M3（硅基流动 `Pro/BAAI/bge-m3`） | 菜品文本与查询向量化 |
 | 向量检索 | Qdrant；LangChain4j Qdrant 模块 1.19.0-beta29 | 语义召回、辣度与分类等元数据过滤 |
 | 外部数据 | 和风天气 API | 推荐 Service 的天气上下文，失败时跳过 |
 | 对象映射与校验 | MapStruct 1.6.3、Lombok、Jakarta Validation | DTO 映射、参数约束 |
-| 前端 | 原生 HTML / CSS / JavaScript | V1 用户端页面、商户界面原型 |
+| 前端 | 原生 HTML / CSS / JavaScript、ES Modules | V2 SSE 聊天、报价确认与画像管理；保留 V1 页面及商户原型 |
 
 ## 已实现的功能
 
@@ -38,7 +51,7 @@
 
 ### V2：工具调用与草稿确认
 
-入口为 `POST /agent/chat`，由 `OrderingAgent` 调用 `DishTools` 中的五个工具；其中长期口味候选属于 M2：
+入口为 `POST /agent/chat` 和 `POST /agent/chat/stream`，由同一个 `OrderingAgent` 调用 `DishTools` 中的五个工具；其中长期口味候选属于 M2：
 
 | 工具 | 职责 | 返回结果 |
 | --- | --- | --- |
@@ -82,8 +95,9 @@ flowchart TD
 - **存储边界**：聊天内容保存在当前 Java 进程内，Redis 保存会话元数据；重启仍会丢失本机聊天上下文，实例校验只识别失效，不恢复消息。尚未支持多实例共享聊天记忆或完整历史归档。
 - **有效期**：`auth.conversation-ttl-minutes` 默认 30 分钟；归属与实例校验通过后，Lua 在同一次执行中刷新 TTL。过期、越权和实例失效请求不续期、不自动重建旧编号。
 - **同会话并发**：当前单实例中，同一编号同时只允许一条消息进入 Agent，其余返回 HTTP 409，不写入模型记忆；不同会话可同时处理。忙碌判断位于续期之后，因此忙碌请求可能已刷新 TTL。
-- **清理机制**：请求开始时登记使用计数，并再次检查 Redis 会话存在；在 `finally` 中归还计数。定时任务每轮结束后等待 60 秒，清理计数为零且会话已不存在的记忆，同时移除本地跟踪记录。
+- **清理机制**：请求开始时登记使用计数，并再次检查 Redis 会话存在；同步请求在 `finally` 中归还计数，流式请求在模型任务终止后归还。定时任务每轮结束后等待 60 秒，清理计数为零且会话已不存在的记忆；成功后归还缓存容量许可并移除本地跟踪记录。
 - **调用与故障保护**：正在执行的调用结束后再清理；Redis 检查失败时保留记录，后续重试。使用计数和清理通过同一编号的 `compute` 操作协调。
+- **入口边界**：同步与流式请求共享 `Semaphore(4)`，许可不足返回 HTTP 503；`message` 最多 2000 字。另以独立许可限制本机缓存会话总数，`auth.max-cached-conversations` 默认 100；满额拒绝新会话，已有空闲会话可续聊，请求结束不立即释放缓存名额。此限制不等于 Redis Key 数或 JVM 字节上限，详见[容量验证记录](docs/m2-capacity-verification.md)。
 
 聊天记忆不代替订单报价、身份或本次确认授权。跨轮确认正式订单仍须提交 `confirmedDraftId`，后端继续检查草稿、归属、预算和菜价。
 
@@ -94,9 +108,23 @@ flowchart TD
 - **默认口味**：每轮聊天读取当前画像，仅将两个口味字段整理为 JSON，通过 `@V("profileContext")` 注入提示词。本轮明确要求优先于普通长期偏好，临时人数、预算和口味不会自动持久化。
 - **空值语义**：没有画像时传入 `{}`；辣度 `null` 表示未知，`none` 表示明确偏好不辣。画像 PUT 为整份替换，字段省略或传 `null` 都会清空对应值，删除画像可重复执行。
 - **候选生成**：`proposeUserPreference` 仅处理长期口味候选；未传的工具参数保留原字段，补充说明传入更新后的完整文本。主动执行 Bean Validation，空白、无有效输入或超长文本返回 `INVALID_ARGUMENTS`，游客返回 `LOGIN_REQUIRED`。
-- **确认边界**：工具成功表示候选已生成，尚未保存。当前聊天 HTTP 响应仍只有 `conversationId` 和 `reply`；独立画像 PUT 已可用，从工具执行结果提取结构化候选、展示确认操作并衔接保存是下一步工作。
+- **确认边界**：工具成功表示候选已生成，尚未保存。聊天响应的 `proposalToolResult` 来自本轮真实工具执行对象，以最后一次候选调用为准，普通聊天时为空。前端展示完整候选，点击“确认保存口味”后再调用独立画像 PUT；清除画像也需单独确认。聊天文本中的“确认”不会直接保存。
 
 本人画像接口通过 24 项真实 HTTP 与数据库检查；候选工具通过 17 项直接调用与 7 项真实 HTTP 行为检查。分阶段结果与范围见[长期画像验证记录](docs/m2-preference-verification.md)。
+
+### M2：SSE 流式回复
+
+`POST /agent/chat/stream` 接收与同步聊天相同的 JSON 请求，返回 `text/event-stream`。通过 LangChain4j `TokenStream` 接收模型增量，按 `meta → delta… → done` 输出；模型失败时以 `error` 结束。`done` 包含完整 `AgentChatResponse`，其中 `reply` 是最终回复，`proposalToolResult` 是本轮候选工具结果。
+
+入口鉴权、会话和参数错误在流开始前返回 HTTP 错误状态与 JSON；流开始后的模型错误通过 SSE `error` 返回。连接超时为 60 秒，超时或断连只关闭输出，模型或工具真实结束后才归还会话计数与并发许可。没有收到 `done` 时应视为回复未完成，不能据此判断订单是否创建，也不能自动重放下单请求。协议示例与测试范围见 [SSE 验证记录](docs/m2-sse-verification.md)。
+
+### M2：Agent 用户界面
+
+默认首页为 AI 点餐，使用 fetch POST 读取 SSE，支持连续聊天、新对话、停止接收和中断提示。`done` 的 `draftToolResult`、`orderToolResult` 与 `proposalToolResult` 均来自实际工具对象，不从模型文字提取编号或金额。
+
+报价卡展示菜品、份数、单价、小计、预算及有效期；用户核对后打开确认弹窗，再明确提交同一 `confirmedDraftId`。超预算、过期或被新试算替代的报价不能从旧按钮提交，最终仍由后端核验。正式订单展示真实回执；游客回执按订单号去重并保存到既有本机订单区。
+
+保留快捷点餐、浏览菜单和历史订单入口。身份切换会结束当前接收并清空页面对话；同页切换保留聊天，刷新页面开启新对话，目前没有历史聊天列表。界面和实现阅读顺序见[前端说明](docs/m2-frontend-verification.md)。
 
 ## 当前边界与后续计划
 
@@ -107,9 +135,10 @@ flowchart TD
 | 会话过期与本机清理 | 已实现滑动有效期、定时清理和调用中保护；已有真实 HTTP 与受控程序分阶段验证 |
 | 自动续期与同会话并发消息 | Lua 原子校验及续期已实现；单实例同会话忙碌时明确拒绝，不同会话可并行 |
 | 重启后上下文失效提示 | 已实现实例编号检查和旧格式拒绝；通过实例切换模拟与 HTTP 检查，未执行真实进程重启演练 |
-| 长期口味画像 | 本地表、本人画像 CRUD、Agent 读取和候选生成已实现并分阶段验证；聊天候选的结构化响应与确认保存衔接待做 |
-| SSE / 流式响应 | 尚未接入；当前返回完整的 `ApiResponse<AgentChatResponse>` |
-| Agent 前端 | 尚未接入；现有用户端仍调用 V1 推荐、下单接口 |
+| 长期口味画像 | 本人 CRUD、Agent 读取、候选与独立 PUT 已验证；真实页面确认保存、新对话读取、取消清除及明确清除通过 |
+| SSE / 流式响应 | 后端与前端已接通；当前 32 项 Java 测试、18 项前端测试通过，真实与受控场景分别记录 |
+| 并发与容量 | 两种入口共享 4 个在途许可；本机缓存会话默认上限 100，空闲过期清理归还名额，受控与真实 HTTP 验收通过 |
+| Agent 前端 | 默认 AI 点餐页已接入；新版真实页面多轮调整、报价、明确下单及画像闭环通过，V1 入口继续保留 |
 | Agent 个性化推荐 | 长期口味已作为默认上下文；推荐工具仍未透传登录用户身份参与历史评分重排 |
 | 推荐输出规范 | 报价边界的两个真实样例回归通过；请求 2～3 道菜时仍出现列出 4 道的数量偏差，待优化 |
 | 天气工具 | 天气由推荐 Service 内部调用，尚未封装为独立 Agent 工具 |
@@ -123,6 +152,7 @@ flowchart TD
 | 方法 | 路径 | 说明 | 身份要求 |
 | --- | --- | --- | --- |
 | POST | `/agent/chat` | V2 自然语言点餐与工具调用 | 支持游客；注册用户传令牌 |
+| POST | `/agent/chat/stream` | V2 SSE 流式回复，最终事件包含结构化候选 | 支持游客；注册用户传令牌 |
 | GET | `/dishes`、`/dishes/{dishNumber}` | 菜单列表、菜品详情 | 公开 |
 | POST | `/recommendations` | V1 智能推荐 | 支持游客；个性化推荐需用户身份 |
 | POST | `/orders` | V1 创建订单 | 公开；传入 userId 时检查用户存在及状态 |
@@ -151,7 +181,7 @@ flowchart TD
 }
 ```
 
-成功响应的 `data` 包含会话编号与回复文本，结构如下：
+同步成功响应的 `data` 包含会话编号、回复文本与可选工具结果，结构如下：
 
 ```json
 {
@@ -159,7 +189,10 @@ flowchart TD
   "msg": "success",
   "data": {
     "conversationId": "<后端返回的实际conversationId>",
-    "reply": "<模型回复文本>"
+    "reply": "<模型回复文本>",
+    "proposalToolResult": null,
+    "draftToolResult": null,
+    "orderToolResult": null
   }
 }
 ```
@@ -187,6 +220,8 @@ flowchart TD
 
 外层 `code: 0` 表示聊天请求成功，是否正式下单仍以工具返回的真实订单为准。会话归属、过期和入口参数校验失败发生在模型调用前，会直接返回相应 HTTP 状态及错误码。
 
+流式请求使用相同请求体，路径换成 `/agent/chat/stream`，并设置 `Accept: text/event-stream`。其返回为 SSE 事件流，不包在外层 `ApiResponse` 中；浏览器对接使用支持 POST、Cookie 和请求头的 `fetch` 读取流。
+
 ### 本人画像请求示例
 
 登录后使用 `X-User-Token`，向 `PUT /users/me/preference` 提交整份画像：
@@ -209,10 +244,14 @@ flowchart TD
 - 同会话并发：8 项受控检查与 3 项真实 HTTP 检查通过；受控 12 条同会话请求仅一条进入模型，其余 11 条为 409，正常与异常结束后均可再发送。
 - 注册用户隔离：8 项真实链路检查通过，包含双向越权、不带或无效 token 拒绝，以及同一用户换 token 后读取原会话。
 - 实例失效：6 项实际 Service 模拟与 7 项真实 HTTP 检查通过，覆盖本人旧实例 409、他人优先 403、旧格式缓存、过期不重建及重新开聊。
+- 缓存容量：12 项受控检查及 11 项真实 HTTP 检查通过，覆盖满额拒绝、已有会话续聊、清理恢复、故障保留及竞争；真实容量边界使用临时容量为 2 的实例，用户 8080 保持默认 100。详见[容量验证记录](docs/m2-capacity-verification.md)。
 - 本人画像接口：24 项真实 HTTP 与数据库检查通过，覆盖保存、修改、清空、删除、长度边界、身份隔离及令牌校验。
 - 画像上下文：完成 15 项画像相关检查；两次真实推荐的辣度与数据库一致，发现的推荐阶段组合报价问题随后通过两个样例回归，候选数量偏差仍保留为待办。
 - 候选生成：17 项工具直接调用与 7 项真实 HTTP 行为检查通过，覆盖空参数、字段保留、200/201 字边界、游客、候选改写及未确认不持久化。
-- 提交前检查：2026-10-20 执行 `./mvnw test`，仓库现有 2 项测试通过（请求校验与 Spring 上下文启动），文档本地链接检查通过。
+- 结构化候选：从实际工具结果提取字段，候选确认保存与下一轮读取完成真实链路验证，保留独立 PUT 的确认边界。
+- 流式聊天：9 项真实 HTTP、模型、MySQL 与 Redis 检查通过，覆盖增量输出、续聊、同步共享记忆、真实工具、结构化候选及入口拒绝；检查未新增订单、草稿或修改长期画像。
+- 自动化检查：2026-10-21 适配现有 Controller 测试的容量初始化后，重跑 `./mvnw -o -q test`，32 项 Java 测试全部通过；前端升级后重跑 18 项 Node 测试及两个脚本语法检查，通过。覆盖范围见 SSE、前端、容量及收尾验证记录。
+- 浏览器联调：先前完成真实续聊、16 元草稿及取消确认；新版后续又通过多轮调整、98/106/80 元报价和明确下单，MySQL 核对 1 笔订单、3 条明细及 80 元合计；真实画像确认保存、新会话读取、取消清除和明确清除通过，专用账号及写入数据已清理。步骤及截图见[收尾记录](docs/m2-closeout-verification.md)。隔离服务的断流、身份切换和 101 道菜跨页等结果另按前端初次记录保留。
 
 慢模型、Redis 故障和实例切换采用可控模拟，临时验证程序及产物已删除；画像测试恢复原记录并清理本轮 token 与 Redis 会话。各轮针对当时实现验收，未对最新代码执行整套自动化业务回归，也不是持续集成记录；范围与复测步骤见[会话验证记录](docs/m2-memory-verification.md)和[长期画像验证记录](docs/m2-preference-verification.md)。
 
@@ -262,9 +301,20 @@ macOS / Linux 设置相同环境变量后，使用 `./mvnw spring-boot:run` 启�
 
 ### 3. 访问与联调
 
-- V1 用户端：[http://localhost:8080/user-frontend/index.html](http://localhost:8080/user-frontend/index.html)。
-- V2 Agent：通过 HTTP 客户端访问 `POST http://localhost:8080/agent/chat`，请求格式见上文。
+- 用户端：[http://localhost:8080/user-frontend/index.html](http://localhost:8080/user-frontend/index.html)。默认打开 AI 点餐，导航保留 V1 快捷点餐、菜单和订单。
+- V2 Agent：通过 HTTP 客户端访问 `POST http://localhost:8080/agent/chat` 或 `/agent/chat/stream`，请求格式见上文。
 - 商户原型：[merchant_ui.html](merchant_ui.html) 位于仓库根目录，可本地打开查看；目前未作为 Spring Boot 静态页面发布，也未接入真实商户接口。
+
+### 4. 运行已有测试
+
+准备好上述依赖与环境变量后，在仓库根目录执行：
+
+```powershell
+.\mvnw.cmd test
+node --test src/test/frontend/agent-client.test.mjs
+```
+
+本轮 Java 测试 32 项、前端测试 18 项通过。前端测试使用 Node.js 内置测试工具，无需安装 npm 依赖。容量验证中的 12 项受控检查与 11 项真实 HTTP 检查属于单独的阶段验收，未计入这 50 项持久测试；详细范围见[容量记录](docs/m2-capacity-verification.md)和[收尾记录](docs/m2-closeout-verification.md)。
 
 ## 目录结构
 
@@ -272,9 +322,10 @@ macOS / Linux 设置相同环境变量后，使用 `./mvnw spring-boot:run` 启�
 smart-ordering-system
 ├── docs/                          需求、阶段计划、业务建模与数据库参考
 ├── src/main/java/com/luwei/ordering
-│   ├── agent/                     Agent 提示词与 DishTools 工具
+│   ├── agent/                     Agent 提示词、DishTools 与流式请求生命周期
 │   ├── bootstrap/                 演示反馈数据初始化
 │   ├── common/                    枚举、异常、统一响应、类型处理器
+│   ├── concurrent/                共享聊天并发许可
 │   ├── config/                    AI Services、Web 配置与拦截器
 │   ├── controller/                Agent、用户端与商户端接口
 │   ├── converter/                 实体与 DTO 转换
@@ -286,7 +337,7 @@ smart-ordering-system
 ├── src/main/resources
 │   ├── application.yml            服务连接与模型配置
 │   ├── mapper/                    Mapper XML
-│   └── static/user-frontend/      V1 用户端页面
+│   └── static/user-frontend/      V2 流式聊天与 V1 用户端页面
 ├── src/test/                      测试代码
 └── merchant_ui.html               商户界面原型
 ```
@@ -298,6 +349,8 @@ smart-ordering-system
 - [会话记忆与流式聊天待办](docs/TODO.md)
 - [会话记忆与生命周期验证记录（更新至 2026-10-20）](docs/m2-memory-verification.md)
 - [长期口味画像与候选生成验证记录](docs/m2-preference-verification.md)
+- [SSE 协议与验证记录](docs/m2-sse-verification.md)
+- [Agent 前端实现、验证与讲解顺序](docs/m2-frontend-verification.md)
 - [业务建模](docs/智能点餐系统业务建模.md)
 - [数据库设计思路](docs/智能点餐系统数据库设计思路.md)
 - [早期建表语句参考](docs/智能点餐系统数据库建表语句.md)

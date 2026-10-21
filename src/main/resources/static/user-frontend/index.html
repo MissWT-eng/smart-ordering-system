@@ -5,27 +5,141 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>智能点餐 · 今天吃点什么</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="agent.css?v=20261021-4" />
 </head>
 <body>
 
-  <!-- ===== 顶部固定导航 ===== -->
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-bowl" viewBox="0 0 24 24"><path d="M3 11h18a9 9 0 0 1-18 0Z"/><path d="M8 21h8M8 7c-2-2 2-3 0-5m4 5c-2-2 2-3 0-5m4 5c-2-2 2-3 0-5"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.8 6.2L21 12l-6.2 2.8L12 21l-2.8-6.2L3 12l6.2-2.8L12 3Zm7-1v4m-2-2h4"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 10-12h-7l1-8Z"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 7h8m-8 5h2m4 0h2m-8 4h2m4 0h2"/></symbol>
+    <symbol id="i-orders" viewBox="0 0 24 24"><path d="M6 3h12v19l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6m-6 4h6m-6 4h3"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20 3c-7-1-15 1-15 8a7 7 0 0 0 7 7c7 0 9-8 8-15Z"/><path d="M3 21 15 9m-8 8v-6m0 6h6"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h6m4 0h6M4 17h10m4 0h2"/><circle cx="12" cy="7" r="2"/><circle cx="16" cy="17" r="2"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 10a8 8 0 0 0-14-5L3 8m0-5v5h5m-4 6a8 8 0 0 0 14 5l3-3m0 5v-5h-5"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m6 12 4 4 8-8"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
+  </svg>
+
   <header class="nav">
     <div class="nav-brand">
-      <span class="nav-title">智能<em>点餐</em></span>
-      <span class="nav-vol">VOL.01</span>
+      <span class="brand-symbol"><svg class="icon"><use href="#i-bowl"/></svg></span>
+      <div><span class="nav-title">智能点餐<span class="brand-dot">.</span></span><span class="brand-caption">每一餐，都有好主意</span></div>
     </div>
-    <nav class="nav-links">
-      <button class="nav-btn" data-page="home">首页</button>
-      <button class="nav-btn" data-page="menu">浏览菜单</button>
-      <button class="nav-btn" data-page="orders">我的订单</button>
-      <button class="nav-btn nav-login" id="navLoginBtn">登录</button>
+    <p class="nav-section-label">用餐空间</p>
+    <nav class="nav-links" aria-label="主导航">
+      <button class="nav-btn" data-page="agent"><svg class="icon"><use href="#i-spark"/></svg><span>AI 点餐</span><span class="nav-ai-badge">AI</span></button>
+      <button class="nav-btn" data-page="home"><svg class="icon"><use href="#i-bolt"/></svg><span>快捷点餐</span></button>
+      <button class="nav-btn" data-page="menu"><svg class="icon"><use href="#i-menu"/></svg><span>浏览菜单</span></button>
+      <button class="nav-btn" data-page="orders"><svg class="icon"><use href="#i-orders"/></svg><span>我的订单</span></button>
     </nav>
+    <div class="nav-bottom">
+      <div class="nav-note"><span class="nav-note-line"></span><p>生活有很多选择，<br />这一餐，选点喜欢的。</p><span>GOOD FOOD, GOOD MOOD.</span></div>
+      <div class="account-entry"><span class="account-avatar" aria-hidden="true"><svg class="icon"><use href="#i-user"/></svg></span><div><button class="nav-btn nav-login" id="navLoginBtn">登录</button><p id="navAccountHint">留住你的专属口味</p></div><svg class="icon account-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></div>
+    </div>
   </header>
 
   <main class="container">
 
+    <section id="page-agent" class="page active" aria-labelledby="agentTitle">
+      <div class="agent-heading">
+        <div>
+          <p class="workspace-breadcrumb">你的用餐空间 <span>/</span> <b>AI 点餐</b></p>
+          <p class="workspace-caption">一点灵感，刚好合你口味。</p>
+        </div>
+        <div class="workspace-actions"><button id="openDiningPanel" class="taste-shortcut" type="button" aria-haspopup="dialog"><svg class="icon"><use href="#i-sliders"/></svg>我的口味</button><button class="sidebar-menu-link" id="agentBrowseMenu" type="button">看看菜单 <svg class="icon"><use href="#i-arrow"/></svg></button></div>
+      </div>
+
+      <div class="agent-layout">
+        <div class="chat-panel">
+          <div class="chat-toolbar">
+            <div class="chat-identity"><span class="chat-avatar" aria-hidden="true"><svg class="icon"><use href="#i-bowl"/></svg></span><div><p class="chat-name">你的点餐助手</p><div class="chat-presence"><span class="presence-dot" aria-hidden="true"></span><span id="agentStatus" role="status">点餐助手已就绪</span></div></div></div>
+            <button id="newConversation" class="new-chat-btn" type="button"><svg class="icon"><use href="#i-plus"/></svg>新对话</button>
+          </div>
+          <div id="chatTimeline" class="chat-timeline" role="log" aria-label="点餐对话" aria-live="off">
+            <div id="chatWelcome" class="chat-welcome">
+              <div class="welcome-hero">
+                <div class="welcome-copy">
+                  <p class="welcome-eyebrow"><span></span> A GOOD MEAL STARTS HERE</p>
+                  <h1 id="agentTitle">好好吃饭，<span>慢慢聊。</span></h1>
+                  <p class="welcome-description">把今天的口味、人数和预算告诉我，<br />我们一起，把这一餐安排好。</p>
+                </div>
+                <svg class="welcome-art" viewBox="0 0 220 225" fill="none" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="ceramic" x1="43" y1="30" x2="181" y2="183" gradientUnits="userSpaceOnUse"><stop stop-color="#fffefa"/><stop offset=".55" stop-color="#f8f3e7"/><stop offset="1" stop-color="#ded6c3"/></linearGradient>
+                    <radialGradient id="plate-well"><stop stop-color="#faf8ef"/><stop offset=".82" stop-color="#eeebdc"/><stop offset="1" stop-color="#ded9c6"/></radialGradient>
+                    <linearGradient id="salad-leaf" x1="0" y1="0" x2="20" y2="25" gradientUnits="userSpaceOnUse"><stop stop-color="#8a9c62"/><stop offset="1" stop-color="#3e6044"/></linearGradient>
+                    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#bda17a"/><stop offset=".5" stop-color="#d6be94"/><stop offset="1" stop-color="#a88b64"/></linearGradient>
+                    <filter id="plate-shadow" x="-35%" y="-25%" width="170%" height="180%"><feDropShadow dx="0" dy="12" stdDeviation="9" flood-color="#5e5139" flood-opacity=".17"/></filter>
+                    <g id="food-leaf"><path d="M0 28C-8 10 3-4 19-5c8 14 4 30-19 33Z" fill="url(#salad-leaf)"/><path d="M1 25 16 0M6 17l-5-8m8 3 9-2" stroke="#c5d3a2" stroke-width=".7" stroke-opacity=".7"/></g>
+                  </defs>
+                  <g transform="rotate(12 164 77)"><rect x="130" y="20" width="66" height="117" rx="7" fill="#e9decc"/><path d="M140 25v107m7-107v107m7-107v107m7-107v107m7-107v107m7-107v107m7-107v107m7-107v107M134 33h57m-57 8h57m-57 8h57m-57 8h57m-57 8h57m-57 8h57m-57 8h57m-57 8h57m-57 8h57m-57 8h57m-57 8h57m-57 8h57" stroke="#c6b89e" stroke-width=".7" stroke-opacity=".3"/></g>
+                  <g filter="url(#plate-shadow)"><circle cx="103" cy="112" r="78" fill="url(#ceramic)" stroke="#fffdf6" stroke-width="2"/><circle cx="103" cy="112" r="67" stroke="#ddd6c2" stroke-opacity=".6"/><circle cx="103" cy="112" r="55" fill="url(#plate-well)"/><circle cx="103" cy="112" r="53" stroke="#fffef8" stroke-opacity=".9"/></g>
+                  <use href="#food-leaf" transform="translate(76 88) rotate(15)"/><use href="#food-leaf" transform="translate(111 83) rotate(61)"/><use href="#food-leaf" transform="translate(130 113) rotate(130)"/><use href="#food-leaf" transform="translate(98 137) rotate(196)"/><use href="#food-leaf" transform="translate(72 122) rotate(252)"/><use href="#food-leaf" transform="translate(112 110) rotate(22) scale(.8)"/>
+                  <path d="M81 100c13-10 31-10 42 1m-36 25c10 7 22 6 30-2" stroke="#ead9a9" stroke-width="5" stroke-linecap="round"/>
+                  <circle cx="87" cy="112" r="9" fill="#c8784e"/><circle cx="87" cy="112" r="6.5" fill="#e5a06f"/><path d="m84 109 5 6m0-6-5 6" stroke="#f6d4a5" stroke-width="1.2"/>
+                  <circle cx="118" cy="126" r="8" fill="#b85d40"/><circle cx="118" cy="126" r="5.7" fill="#db8b62"/><path d="m116 123 4 5m0-5-4 5" stroke="#f5c79b" stroke-width="1"/>
+                  <ellipse cx="109" cy="100" rx="6" ry="4" transform="rotate(-22 109 100)" fill="#f3e5c4"/><ellipse cx="95" cy="132" rx="5" ry="3" transform="rotate(22 95 132)" fill="#f3e5c4"/>
+                  <g transform="rotate(14 193 135)"><rect x="188" y="119" width="7" height="84" rx="3.5" fill="url(#wood)"/><path d="M185 80v33a7 7 0 0 0 14 0V80m-9 0v29m4-29v29" stroke="#b59a72" stroke-width="2.6" stroke-linecap="round"/></g>
+                  <path d="M24 175c-7-15-1-22 7-25 5 12 3 20-7 25Zm-7 3c-12-6-17-1-17 7 10 6 17 3 17-7Z" fill="#8d9c75" fill-opacity=".65"/><path d="m10 200 15-31" stroke="#8d9c75" stroke-width="1.2"/>
+                  <circle cx="155" cy="191" r="2" fill="#b99f71"/><circle cx="145" cy="198" r="1.5" fill="#b99f71"/><circle cx="153" cy="205" r="1" fill="#b99f71"/>
+                </svg>
+              </div>
+              <div class="conversation-starters">
+                <button type="button" data-chat-prompt="两个人吃饭，预算100元，想吃清淡不辣的。请先推荐，不要试算或下单。"><span class="starter-icon is-sage" aria-hidden="true"><svg class="icon"><use href="#i-leaf"/></svg></span><b>清淡一点，刚刚好</b><small>两人用餐 · 100 元以内</small><svg class="icon starter-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+                <button type="button" data-chat-prompt="请查询今天的在售菜单，告诉我有哪些菜和价格，暂不试算或下单。"><span class="starter-icon is-clay" aria-hidden="true"><svg class="icon"><use href="#i-menu"/></svg></span><b>今天有什么好吃的</b><small>逛逛菜单，找一点灵感</small><svg class="icon starter-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+                <button type="button" data-chat-prompt="我想设置长期口味，请先问我辣度和其他偏好，生成候选供我确认，不要直接保存。"><span class="starter-icon is-sand" aria-hidden="true"><svg class="icon"><use href="#i-sliders"/></svg></span><b>懂一点我的口味</b><small>记住偏好，下次更合拍</small><svg class="icon starter-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+              </div>
+              <p class="welcome-footnote"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>选一个灵感，或直接聊聊今天想吃什么。</p>
+            </div>
+          </div>
+          <div class="chat-bottom">
+            <p id="chatNotice" class="chat-notice hidden" role="status"></p>
+            <button id="jumpToLatest" type="button" class="jump-latest hidden">查看最新回复 ↓</button>
+            <form id="chatForm" class="chat-composer">
+              <label class="sr-only" for="chatInput">告诉点餐助手你的需求</label>
+              <textarea id="chatInput" rows="2" maxlength="2000" placeholder="今天想吃什么？说说你的想法……" aria-describedby="chatInputHelp"></textarea>
+              <div class="composer-actions">
+                <span class="composer-assistant"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>你的专属点餐助手</span>
+                <div><span id="chatInputCount">0 / 2000</span><button id="stopChat" class="stop-chat hidden" type="button">停止接收</button><button id="sendChat" class="send-chat" type="submit" disabled>发送 <svg class="icon" aria-hidden="true"><use href="#i-up"/></svg></button></div>
+              </div>
+            </form>
+            <p id="chatInputHelp" class="composer-help"><span><kbd>Enter</kbd> 发送 · <kbd>Shift + Enter</kbd> 换行</span><span><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>下单前，会请你再次确认</span></p>
+          </div>
+        </div>
+
+        <aside id="diningSidebar" class="dining-sidebar" aria-label="口味偏好与用餐指引">
+          <div class="table-heading"><div><p class="agent-eyebrow">A LITTLE MORE YOU</p><h2>你的专属餐桌</h2></div><button id="closeDiningPanel" class="icon-button" type="button" aria-label="关闭口味面板"><svg class="icon"><use href="#i-close"/></svg></button></div>
+          <section class="sidebar-block taste-block" aria-labelledby="tasteTitle">
+            <div class="taste-heading"><span class="taste-heading-icon" aria-hidden="true"><svg class="icon"><use href="#i-sliders"/></svg></span><h2 id="tasteTitle">口味备忘录</h2><button id="refreshTaste" type="button" class="icon-button" aria-label="刷新已保存的口味" title="刷新口味"><svg class="icon"><use href="#i-refresh"/></svg></button></div>
+            <div id="savedTaste" class="saved-taste"><p>登录后，把喜欢的味道留在这里。</p></div>
+            <button id="clearTaste" type="button" class="clear-taste hidden">清除已保存的口味</button>
+            <p class="taste-footnote"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>只在你确认后保存</p>
+          </section>
+          <section class="sidebar-block guide-block" aria-labelledby="diningGuideTitle">
+            <h2 id="diningGuideTitle">一顿好饭，三步就好</h2>
+            <ol class="dining-steps">
+              <li><span>1</span><div><b>说说想法</b><p>人数、预算、口味，都可以聊。</p></div></li>
+              <li><span>2</span><div><b>挑一份喜欢的</b><p>选好搭配，查看准确报价。</p></div></li>
+              <li><span><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span><div><b>确认，再下单</b><p>每一份订单，都由你决定。</p></div></li>
+            </ol>
+          </section>
+          <div class="table-note"><svg class="table-illustration" viewBox="0 0 240 145" fill="none" aria-hidden="true"><ellipse cx="123" cy="112" rx="79" ry="15" stroke="currentColor" stroke-opacity=".25"/><path d="M66 80h112c-5 29-24 43-56 43S72 109 66 80Z" fill="currentColor" fill-opacity=".08" stroke="currentColor" stroke-width="1.5"/><ellipse cx="122" cy="80" rx="56" ry="12" stroke="currentColor" stroke-width="1.5"/><path d="M96 61c-15-16 16-18 2-35m23 35c-15-16 16-18 2-35m22 35c-15-16 16-18 2-35M177 72l29-41m-23 44 32-39" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="m47 36 2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6Z" fill="currentColor" fill-opacity=".7"/></svg><p>认真吃饭，<br />是日常的小小浪漫。</p><span>MAKE TIME FOR A GOOD MEAL.</span></div>
+          <p class="sidebar-note">一份菜单，一点灵感。<br />把选择留给你。</p>
+        </aside>
+      </div>
+      <dialog id="diningPanelDialog" class="dining-drawer" aria-labelledby="tasteTitle"></dialog>
+    </section>
+
     <!-- ===== 页面：首页（Agent-first，提问态 / 结果态双形态） ===== -->
-    <section id="page-home" class="page active">
+    <section id="page-home" class="page">
       <div class="hero">
         <!-- 背景巨型水印字 -->
         <div class="hero-watermark" aria-hidden="true">食</div>
@@ -247,6 +361,23 @@
   <!-- ===== 全局提示 ===== -->
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script src="app.js"></script>
+  <dialog id="agentConfirmDialog" class="agent-confirm-dialog" aria-labelledby="agentConfirmTitle">
+    <form method="dialog"><button class="dialog-close" aria-label="关闭确认窗口">×</button></form>
+    <p class="agent-eyebrow">ONE LAST LOOK</p>
+    <h2 id="agentConfirmTitle">确认这份报价，再下单</h2>
+    <div id="agentConfirmDetail"></div>
+    <p class="confirm-note">确认后将创建正式订单，当前未接入真实支付。</p>
+    <div class="confirm-actions"><button id="cancelAgentOrder" type="button" class="btn-ghost">再想想</button><button id="submitAgentOrder" type="button" class="btn-primary">确认提交订单</button></div>
+  </dialog>
+  <dialog id="clearTasteDialog" class="agent-confirm-dialog" aria-labelledby="clearTasteTitle">
+    <form method="dialog"><button class="dialog-close" aria-label="关闭口味清除窗口">×</button></form>
+    <p class="agent-eyebrow">YOUR PREFERENCE</p>
+    <h2 id="clearTasteTitle">清除已保存的长期口味？</h2>
+    <p class="confirm-note">将清除已保存的辣度和补充口味。之后的推荐不再默认使用这份画像，你也可以随时重新设置。</p>
+    <div class="confirm-actions"><button id="cancelClearTaste" type="button" class="btn-ghost">保留口味</button><button id="confirmClearTaste" type="button" class="btn-primary">确认清除</button></div>
+  </dialog>
+
+  <script src="app.js?v=20261021-2"></script>
+  <script type="module" src="agent.js?v=20261021-4"></script>
 </body>
 </html>
