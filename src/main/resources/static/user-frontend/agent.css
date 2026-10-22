@@ -111,19 +111,32 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .new-chat-btn:active { transform: translateY(1px); }
 .new-chat-btn:disabled { opacity: .45; cursor: not-allowed; }
 .chat-timeline { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: 22px max(28px, calc((100% - 750px) / 2)) 16px; scrollbar-width: thin; scrollbar-color: #d7d9c9 transparent; overscroll-behavior: contain; }
-.chat-welcome { width: 100%; max-width: 650px; margin: auto; padding: 10px 3px 18px; text-align: left; flex-shrink: 0; }
-.welcome-hero { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 12px; align-items: center; }
+.chat-welcome { width: 100%; max-width: 650px; margin: auto; padding: 6px 3px 10px; text-align: left; flex-shrink: 0; }
+.welcome-hero { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 20px; align-items: center; }
 .welcome-copy { min-width: 0; }
+.welcome-artwork { position: relative; margin: 0; padding: 8px 0 0; isolation: isolate; }
+.welcome-artwork::before { content: ""; position: absolute; inset: 10px -6px 25px; border: 1px solid #e7dfca88; border-radius: 50%; background: radial-gradient(circle, #eee7d46b, transparent 68%); z-index: -1; }
+.welcome-artwork figcaption { text-align: center; color: #9d8b69; font-size: 10px; letter-spacing: 2px; margin-top: 7px; }
 .welcome-art { display: block; width: 100%; max-height: 210px; overflow: visible; transform: rotate(-5deg); }
-.welcome-eyebrow { display: flex; align-items: center; gap: 8px; font: 9px/1.7 var(--sans); letter-spacing: 1.6px; color: #9e8c6e; margin-bottom: 16px; }
+.welcome-eyebrow { display: flex; align-items: center; gap: 8px; font: 11px/1.7 var(--sans); letter-spacing: 1.6px; color: #9e8c6e; margin-bottom: 16px; }
 .welcome-eyebrow > span { width: 18px; height: 1px; background: #bda277; }
-.chat-welcome h1 { font: 550 clamp(32px, 2.9vw, 44px)/1.42 var(--serif); letter-spacing: .5px; color: #394331; }
+.chat-welcome h1 { font: 550 clamp(32px, 2.9vw, 42px)/1.35 var(--serif); letter-spacing: .5px; color: #394331; }
 .chat-welcome h1 span { display: block; color: #a67550; }
 .welcome-description { color: #7f806d; font-size: 13px; line-height: 2; margin-top: 17px; letter-spacing: .3px; }
-.conversation-starters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 30px 0 0; text-align: left; }
+.welcome-description strong { font-weight: 500; color: #57654a; text-decoration: underline; text-decoration-color: #c0c9aa; text-underline-offset: 5px; text-decoration-thickness: 1px; }
+.inspiration-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 19px; padding-top: 10px; border-top: 1px solid #e8e3d7; }
+.inspiration-heading h2 { font-size: 12px; font-weight: 500; color: #737b62; letter-spacing: .6px; }
+.inspiration-heading button { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; border: 0; border-radius: 7px; padding: 5px 7px; background: transparent; color: #8c8a73; font: 11px var(--sans); cursor: pointer; transition: color .2s, background .2s; }
+.inspiration-heading button:hover { background: #eeeee2; color: #526544; }
+.inspiration-heading .icon { width: 12px; height: 12px; }
+.conversation-starters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 12px 0 0; text-align: left; }
 .conversation-starters button { min-width: 0; position: relative; padding: 18px 15px 17px; border: 1px solid #e5dfd1; border-radius: 13px; background: linear-gradient(145deg, #fffefb, #f8f5ec); color: #535943; text-align: left; cursor: pointer; box-shadow: inset 0 1px #fff, 0 4px 12px #62583c05, 0 1px 2px #62583c04; transition: transform .2s, border-color .2s, box-shadow .2s, background .2s; }
 .conversation-starters button:hover { transform: translateY(-3px); border-color: #b6bea0; background: linear-gradient(145deg, #fffefa, #f1f2e6); box-shadow: inset 0 1px #fff, 0 9px 20px #62583c0d, 0 2px 4px #62583c06; }
 .conversation-starters button:active { transform: translateY(0); box-shadow: inset 0 1px 3px #62583c0a; }
+.conversation-starters button:nth-child(1) { background: linear-gradient(135deg, #f5f7ed, #edf0e2); border-color: #dde3ce; }
+.conversation-starters button:nth-child(2) { background: linear-gradient(135deg, #fcf6ef, #f5eadf); border-color: #e9dece; }
+.conversation-starters button:nth-child(3) { background: linear-gradient(135deg, #f8f5ed, #efeadc); border-color: #e4dfcd; }
+.conversation-starters button:hover { border-color: #aebc96; box-shadow: 0 7px 20px #5456350c, inset 0 1px #fff; }
 .starter-icon { width: 35px; height: 35px; border: 1px solid #ffffff95; border-radius: 11px; display: grid; place-items: center; margin-bottom: 18px; box-shadow: inset 0 1px #fff8, 0 2px 4px #66573b08; }
 .starter-icon .icon { width: 18px; height: 18px; }
 .is-sage { background: linear-gradient(145deg, #e8edde, #dce5ca); color: #6d8051; }
@@ -132,7 +145,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .conversation-starters b { display: block; font-size: 13px; font-weight: 550; line-height: 1.7; white-space: normal; }
 .conversation-starters small { display: block; font-size: 11px; line-height: 1.7; color: #8c8b76; margin-top: 5px; }
 .starter-arrow { position: absolute; right: 16px; top: 25px; width: 14px; height: 14px; color: #9da38b; transform: rotate(-40deg); }
-.welcome-footnote { display: flex; align-items: center; gap: 6px; color: #9b9783; font-size: 10px; margin-top: 19px; }
+.welcome-footnote { display: flex; align-items: center; gap: 6px; color: #8a8875; font-size: 10px; margin-top: 12px; }
 .welcome-footnote .icon { width: 12px; height: 12px; color: #ac9971; }
 
 /* Readable messages and real tool results. */
@@ -320,10 +333,11 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 @media (min-width: 761px) and (max-height: 820px) {
   .welcome-hero { grid-template-columns: minmax(0, 1fr) 145px; }
   .welcome-art { max-height: 155px; }
-  .welcome-eyebrow { margin-bottom: 8px; font-size: 8px; }
+  .welcome-eyebrow { margin-bottom: 8px; font-size: 10px; }
   .chat-welcome h1 { font-size: 34px; }
   .welcome-description { margin-top: 9px; }
-  .conversation-starters { margin-top: 22px; }
+  .inspiration-heading { margin-top: 18px; padding-top: 12px; }
+  .conversation-starters { margin-top: 10px; }
   .conversation-starters button { padding: 15px 13px; }
   .starter-icon { margin-bottom: 12px; }
   .welcome-footnote { display: none; }
@@ -368,10 +382,11 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
   .chat-welcome { max-width: 600px; padding: 10px 0 15px; }
   .welcome-hero { grid-template-columns: minmax(0, 1fr) 150px; }
   .welcome-art { max-height: 160px; }
-  .welcome-eyebrow { font-size: 8px; letter-spacing: 1.5px; margin-bottom: 10px; }
+  .welcome-eyebrow { font-size: 10px; letter-spacing: 1.5px; margin-bottom: 10px; }
   .chat-welcome h1 { font-size: 34px; letter-spacing: 0; }
   .welcome-description { font-size: 12px; margin-top: 10px; }
-  .conversation-starters { margin-top: 25px; }
+  .inspiration-heading { margin-top: 20px; padding-top: 12px; }
+  .conversation-starters { margin-top: 10px; }
   .conversation-starters button { padding: 14px 12px; }
   .conversation-starters b { font-size: 12px; }
   .conversation-starters small { font-size: 10px; }
@@ -402,12 +417,12 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 @media (max-width: 560px) {
   .chat-welcome { max-width: 390px; }
   .welcome-hero { display: block; }
-  .welcome-art { display: none; }
-  .welcome-eyebrow { font-size: 8px; letter-spacing: 1px; margin-bottom: 13px; }
+  .welcome-artwork { display: none; }
+  .welcome-eyebrow { font-size: 10px; letter-spacing: 1px; margin-bottom: 13px; }
   .chat-welcome h1 { font-size: 28px; }
   .chat-welcome h1 span { display: inline; }
   .welcome-description { font-size: 12px; line-height: 1.9; margin-top: 12px; }
-  .conversation-starters { grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 23px; }
+  .conversation-starters { grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 10px; }
   .conversation-starters button { display: grid; grid-template-columns: 33px minmax(0, 1fr) 14px; grid-template-rows: auto auto; column-gap: 12px; padding: 10px 13px; border-radius: 11px; }
   .starter-icon { grid-column: 1; grid-row: 1 / 3; margin: 0; }
   .conversation-starters b { grid-column: 2; font-size: 12px; }

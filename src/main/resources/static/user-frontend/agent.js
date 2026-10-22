@@ -400,11 +400,35 @@ matchMedia("(min-width: 1181px)").addEventListener("change", (event) => {
 $("#refreshTaste").addEventListener("click", loadProfile);
 $("#jumpToLatest").addEventListener("click", () => scrollLatest(true));
 timeline.addEventListener("scroll", () => $("#jumpToLatest").classList.toggle("hidden", nearBottom()));
-document.querySelectorAll("[data-chat-prompt]").forEach((button) => button.addEventListener("click", () => {
+const starterButtons = [...document.querySelectorAll("[data-chat-prompt]")];
+const starterGroups = [starterButtons.map((button) => ({
+  title: button.querySelector("b").textContent,
+  description: button.querySelector("small").textContent,
+  prompt: button.dataset.chatPrompt,
+  icon: button.querySelector(".starter-icon use").getAttribute("href"),
+})), [
+  { title: "一个人，也好好吃", description: "一人食 · 简单又满足", icon: "#i-bowl", prompt: "一个人吃饭，预算50元，想简单吃得舒服。请先推荐，不要试算或下单。" },
+  { title: "朋友来了，吃点好的", description: "三五好友 · 分享好味道", icon: "#i-user", prompt: "四个朋友一起吃饭，预算200元，想搭配适合分享的菜。请先询问我们的口味，再推荐，不要试算或下单。" },
+  { title: "来一碗暖暖的汤", description: "热汤暖胃 · 清淡些就好", icon: "#i-bowl", prompt: "今天想吃清淡一点，配一碗热汤。请查询在售菜单推荐合适的菜，不要试算或下单。" },
+]];
+let starterGroup = 0;
+$("#refreshStarters").addEventListener("click", () => {
+  starterGroup = (starterGroup + 1) % starterGroups.length;
+  starterButtons.forEach((button, index) => {
+    const idea = starterGroups[starterGroup][index];
+    button.querySelector("b").textContent = idea.title;
+    button.querySelector("small").textContent = idea.description;
+    button.querySelector(".starter-icon use").setAttribute("href", idea.icon);
+    button.dataset.chatPrompt = idea.prompt;
+  });
+  $("#starterHint").textContent = `已换好第 ${starterGroup + 1} 组灵感，选一个聊聊吧。`;
+});
+starterButtons.forEach((button) => button.addEventListener("click", () => {
   input.value = button.dataset.chatPrompt;
   updateControls();
   input.focus();
 }));
+document.querySelectorAll("[data-go-page]").forEach((button) => button.addEventListener("click", () => ui.switchPage(button.dataset.goPage)));
 $("#cancelAgentOrder").addEventListener("click", () => dialog.close());
 $("#clearTaste").addEventListener("click", () => {
   if (chat.busy || chat.saving || !ui.getUser()?.token) return;

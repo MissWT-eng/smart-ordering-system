@@ -9,6 +9,7 @@ import com.luwei.ordering.dto.response.*;
 import com.luwei.ordering.service.DishService;
 import com.luwei.ordering.service.OrderDraftService;
 import com.luwei.ordering.service.RecommendationService;
+import com.luwei.ordering.service.WeatherService;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.invocation.InvocationParameters;
@@ -27,6 +28,7 @@ public class DishTools {
     private final RecommendationService recommendationService;
     private final OrderDraftService orderDraftService;
     private final Validator validator;
+    private final WeatherService weatherService;
 
     @Tool("查询菜单:返回当前所有在售菜品(名称、价格、分类、简介)，用于帮顾客点餐")
     public String queryMenu() {
@@ -376,4 +378,27 @@ public class DishTools {
                 "询问用户是否需要保存，当前已经生成待保存候选"
         );
     }
-}
+
+    @Tool("查询门店所在城市的当前天气，用于回答天气问题或辅助点餐")
+    public WeatherToolResult queryWeather(){
+        WeatherInfoDTO weather = null;
+        try {
+            weather = weatherService.obtainCurrentWeather();
+        }
+        catch (BusinessException e){
+            if(e.getErrorCode() == ErrorCode.WEATHER_SERVICE_UNAVAILABLE){
+                return new WeatherToolResult(WeatherToolResult.Status.SERVICE_UNAVAILABLE,
+                        weather,
+                        "说明暂时无法获取天气，不编造天气",
+                        "顾客仍需推荐时，可继续按口味和预算推荐");
+            }
+            throw e;
+            }
+        return new WeatherToolResult(
+                WeatherToolResult.Status.SUCCESS,
+                weather,
+                "依据真实数据回答天气，说明查询城市",
+                "顾客需要推荐时，再结合天气推荐"
+        );
+        }
+    }

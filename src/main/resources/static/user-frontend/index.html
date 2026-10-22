@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>智能点餐 · 今天吃点什么</title>
   <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="agent.css?v=20261021-4" />
+  <link rel="stylesheet" href="agent.css?v=20261022-2" />
+  <link rel="stylesheet" href="content.css?v=20261022-2" />
 </head>
 <body>
 
@@ -67,10 +68,11 @@
             <div id="chatWelcome" class="chat-welcome">
               <div class="welcome-hero">
                 <div class="welcome-copy">
-                  <p class="welcome-eyebrow"><span></span> A GOOD MEAL STARTS HERE</p>
+                  <p class="welcome-eyebrow"><span></span> 把一餐，过成喜欢的样子</p>
                   <h1 id="agentTitle">好好吃饭，<span>慢慢聊。</span></h1>
-                  <p class="welcome-description">把今天的口味、人数和预算告诉我，<br />我们一起，把这一餐安排好。</p>
+                  <p class="welcome-description">把今天的<strong>口味、人数和预算</strong>告诉我，<br />我们一起，把这一餐安排好。</p>
                 </div>
+                <figure class="welcome-artwork">
                 <svg class="welcome-art" viewBox="0 0 220 225" fill="none" aria-hidden="true">
                   <defs>
                     <linearGradient id="ceramic" x1="43" y1="30" x2="181" y2="183" gradientUnits="userSpaceOnUse"><stop stop-color="#fffefa"/><stop offset=".55" stop-color="#f8f3e7"/><stop offset="1" stop-color="#ded6c3"/></linearGradient>
@@ -91,13 +93,16 @@
                   <path d="M24 175c-7-15-1-22 7-25 5 12 3 20-7 25Zm-7 3c-12-6-17-1-17 7 10 6 17 3 17-7Z" fill="#8d9c75" fill-opacity=".65"/><path d="m10 200 15-31" stroke="#8d9c75" stroke-width="1.2"/>
                   <circle cx="155" cy="191" r="2" fill="#b99f71"/><circle cx="145" cy="198" r="1.5" fill="#b99f71"/><circle cx="153" cy="205" r="1" fill="#b99f71"/>
                 </svg>
+                  <figcaption>一餐一味，好好生活</figcaption>
+                </figure>
               </div>
+              <div class="inspiration-heading"><h2>从一个小灵感开始</h2><button id="refreshStarters" type="button"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>换些灵感</button></div>
               <div class="conversation-starters">
                 <button type="button" data-chat-prompt="两个人吃饭，预算100元，想吃清淡不辣的。请先推荐，不要试算或下单。"><span class="starter-icon is-sage" aria-hidden="true"><svg class="icon"><use href="#i-leaf"/></svg></span><b>清淡一点，刚刚好</b><small>两人用餐 · 100 元以内</small><svg class="icon starter-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
                 <button type="button" data-chat-prompt="请查询今天的在售菜单，告诉我有哪些菜和价格，暂不试算或下单。"><span class="starter-icon is-clay" aria-hidden="true"><svg class="icon"><use href="#i-menu"/></svg></span><b>今天有什么好吃的</b><small>逛逛菜单，找一点灵感</small><svg class="icon starter-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
                 <button type="button" data-chat-prompt="我想设置长期口味，请先问我辣度和其他偏好，生成候选供我确认，不要直接保存。"><span class="starter-icon is-sand" aria-hidden="true"><svg class="icon"><use href="#i-sliders"/></svg></span><b>懂一点我的口味</b><small>记住偏好，下次更合拍</small><svg class="icon starter-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
               </div>
-              <p class="welcome-footnote"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>选一个灵感，或直接聊聊今天想吃什么。</p>
+              <p class="welcome-footnote"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg><span id="starterHint" role="status">点击卡片填入想法，发送后再开始聊。</span></p>
             </div>
           </div>
           <div class="chat-bottom">
@@ -141,23 +146,18 @@
     <!-- ===== 页面：首页（Agent-first，提问态 / 结果态双形态） ===== -->
     <section id="page-home" class="page">
       <div class="hero">
-        <!-- 背景巨型水印字 -->
-        <div class="hero-watermark" aria-hidden="true">食</div>
-        <!-- 印章 -->
-        <div class="seal" aria-hidden="true">鲜</div>
-
-        <div class="hero-index">AI Concierge · 智能膳食管家</div>
+        <div class="hero-index">A MEAL FOR YOU · 今天的好味道</div>
         <h1>今天，<br/><span class="highlight">吃点什么？</span></h1>
-        <p class="hero-sub">不用翻菜单。把口味、预算、心情说成一句话，剩下的交给我。</p>
+        <p class="hero-sub">说说想吃的味道，再添上人数和预算。<br />为你挑几道合适的，把这一餐安排妥帖。</p>
 
         <!-- 墨色指令台：提问态为大卡片，结果态自动收成顶部输入条 -->
         <div class="agent-box">
-          <div class="agent-label">你的需求 · YOUR CRAVING</div>
+          <label for="preferenceInput" class="agent-label">这一餐，想怎么吃？</label>
           <textarea
             id="preferenceInput"
             class="agent-input"
             rows="3"
-            placeholder="例如：想吃辣的、不要汤、想喝点热乎的……（预算和人数填上面）"></textarea>
+            placeholder="例如：想吃点微辣的家常菜，配一碗热汤……"></textarea>
           <div class="agent-extra">
             <label class="extra-field">
               <span>人数</span>
@@ -183,14 +183,6 @@
           <span>上次推荐还在，点击查看结果</span>
           <span class="back-result-arrow">→</span>
         </button>
-      </div>
-
-      <!-- 跑马灯分割带（结果态自动隐藏） -->
-      <div class="marquee" aria-hidden="true">
-        <span class="marquee-inner">
-          麻辣鲜香 <b>·</b> 清淡爽口 <b>·</b> 家常下饭 <b>·</b> 汤羹暖胃 <b>·</b> 饮品解腻 <b>·</b> 时令鲜蔬 <b>·</b>
-          麻辣鲜香 <b>·</b> 清淡爽口 <b>·</b> 家常下饭 <b>·</b> 汤羹暖胃 <b>·</b> 饮品解腻 <b>·</b> 时令鲜蔬 <b>·</b>
-        </span>
       </div>
 
       <!-- 三步流程（结果态自动隐藏） -->
@@ -235,22 +227,24 @@
     </section>
 
     <!-- ===== 页面：浏览菜单 ===== -->
-    <section id="page-menu" class="page">
-      <div class="section-head">
-        <span class="section-num">02</span>
-        <span class="section-title">全部菜单</span>
-      </div>
-      <div class="filter-bar" id="categoryFilter">
-        <button class="chip active" data-category="">全部</button>
-        <button class="chip" data-category="meat">荤菜</button>
-        <button class="chip" data-category="vegetable">素菜</button>
-        <button class="chip" data-category="soup">汤羹</button>
-        <button class="chip" data-category="drink">饮品</button>
+    <section id="page-menu" class="page" aria-labelledby="menuTitle">
+      <header class="content-heading">
+        <div><p class="content-eyebrow">THE MENU · 随心挑选</p><h1 id="menuTitle">今天，想吃点什么？</h1><p class="content-heading-note">从一道喜欢的菜开始，慢慢选出这一餐。</p></div>
+        <button class="sidebar-menu-link" type="button" data-go-page="agent"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>让 AI 帮我选</button>
+      </header>
+      <div class="menu-filter-shell">
+      <div class="filter-bar" id="categoryFilter" aria-label="菜品分类">
+        <button class="chip active" data-category="" aria-pressed="true">全部菜品</button>
+        <button class="chip" data-category="meat" aria-pressed="false">荤菜</button>
+        <button class="chip" data-category="vegetable" aria-pressed="false">素菜</button>
+        <button class="chip" data-category="soup" aria-pressed="false">汤羹</button>
+        <button class="chip" data-category="drink" aria-pressed="false">饮品</button>
       </div>
       <!-- 计数与加载态放在卡片上方：分页/筛选后能立刻知道结果集多大 -->
       <div class="menu-meta">
         <span id="menuCount">—</span>
         <span id="menuLoading" class="menu-loading hidden">加载中…</span>
+      </div>
       </div>
       <div id="menuCards" class="card-grid"></div>
       <div id="menuPager" class="pager">
@@ -261,13 +255,12 @@
     </section>
 
     <!-- ===== 页面：我的订单 ===== -->
-    <section id="page-orders" class="page">
-      <div class="section-head">
-        <span class="section-num">03</span>
-        <span class="section-title">我的订单</span>
-      </div>
+    <section id="page-orders" class="page" aria-labelledby="ordersTitle">
+      <header class="content-heading"><div><p class="content-eyebrow">YOUR TABLE · 用餐记录</p><h1 id="ordersTitle">每一餐，都有记录。</h1><p class="content-heading-note">看看点过的好味道，也为下一餐留一点灵感。</p></div><button class="sidebar-menu-link" type="button" data-go-page="menu">去选点好吃的 <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></header>
       <div id="orderList" class="order-list"></div>
       <div id="ordersEmpty" class="empty-tip hidden">
+        <span class="empty-illustration" aria-hidden="true"><svg class="icon"><use href="#i-orders"/></svg></span>
+        <strong>下一顿好饭，从这里开始</strong>
         <span id="ordersEmptyText">登录后就能查看历史订单</span>
         <button id="emptyLoginBtn" class="btn-primary btn-sm">去登录</button>
       </div>
@@ -377,7 +370,7 @@
     <div class="confirm-actions"><button id="cancelClearTaste" type="button" class="btn-ghost">保留口味</button><button id="confirmClearTaste" type="button" class="btn-primary">确认清除</button></div>
   </dialog>
 
-  <script src="app.js?v=20261021-2"></script>
-  <script type="module" src="agent.js?v=20261021-4"></script>
+  <script src="app.js?v=20261022-2"></script>
+  <script type="module" src="agent.js?v=20261022-2"></script>
 </body>
 </html>

@@ -11,15 +11,15 @@
 const API_BASE =
   location.protocol === "file:" ? "http://localhost:8080" : "";
 
-/* 分类占位图（后端没有图片字段，用 emoji + 素色纸底） */
+/* 用真实菜品分类配合统一线描图标，不将占位图当作菜品照片。 */
 const CATEGORY_MAP = {
-  meat:      { emoji: "🥩", label: "荤菜" },
-  vegetable: { emoji: "🥬", label: "素菜" },
-  drink:     { emoji: "🥤", label: "饮品" },
-  soup:      { emoji: "🍲", label: "汤羹" },
+  meat:      { key: "meat", icon: "bowl", label: "荤菜" },
+  vegetable: { key: "vegetable", icon: "leaf", label: "素菜" },
+  drink:     { key: "drink", icon: "menu", label: "饮品" },
+  soup:      { key: "soup", icon: "bowl", label: "汤羹" },
 };
 function categoryOf(dish) {
-  return CATEGORY_MAP[dish.category] || { emoji: "🍽️", label: "其他" };
+  return CATEGORY_MAP[dish.category] || { key: "other", icon: "menu", label: "其他" };
 }
 
 /* ---------- 全局状态 ---------- */
@@ -305,29 +305,32 @@ $("#preferenceInput").addEventListener("input", refreshTagActive);
  * ========================================================= */
 function renderDishCard(dish, reason, primary) {
   const cat = categoryOf(dish);
-  const item = state.cart.get(dish.dishNumber) || { qty: 1, checked: false };
+  const selected = state.cart.has(dish.dishNumber);
+  const item = state.cart.get(dish.dishNumber) || { qty: 1 };
 
   const card = document.createElement("div");
-  card.className = "dish-card" + (primary ? " primary" : "");
+  card.className = "dish-card" + (primary ? " primary" : "") + (selected ? " is-selected" : "");
   card.dataset.dishNumber = dish.dishNumber; // 供跨页同步勾选状态用
   card.innerHTML = `
-    ${primary ? '<div class="primary-badge">主推</div>' : ""}
-    <div class="dish-emoji ${dish.category || "other"}"><span aria-hidden="true">${cat.emoji}</span></div>
+    <div class="dish-category-row">
+      <span class="dish-category-symbol is-${cat.key}" aria-hidden="true"><svg class="icon"><use href="#i-${cat.icon}"/></svg></span>
+      <span class="dish-category-label">${cat.label}</span>
+      ${primary ? '<span class="primary-badge">为你主推</span>' : ""}
+    </div>
     <div class="dish-body">
       <div class="dish-head">
-        <span class="dish-name">${esc(dish.dishName)}</span>
-        <span class="dish-leader"></span>
-        <span class="dish-price">${Number(dish.price).toFixed(2)}</span>
+        <h2 class="dish-name">${esc(dish.dishName)}</h2>
       </div>
       ${reason ? `<div class="dish-reason" tabindex="0" role="button" aria-expanded="false" aria-label="展开简介">${esc(reason)}</div>` : ""}
+      <div class="dish-price-row"><span class="dish-price">${Number(dish.price).toFixed(2)}</span><span class="dish-price-unit">/ 份</span></div>
       <div class="dish-actions">
         <div class="stepper">
-          <button class="step-minus" aria-label="减少数量" ${item.qty <= 1 ? "disabled" : ""}>−</button>
+          <button class="step-minus" aria-label="减少${esc(dish.dishName)}的数量" ${item.qty <= 1 ? "disabled" : ""}>−</button>
           <span class="qty">${item.qty}</span>
-          <button class="step-plus" aria-label="增加数量">+</button>
+          <button class="step-plus" aria-label="增加${esc(dish.dishName)}的数量">+</button>
         </div>
         <label class="check-label">
-          <input type="checkbox" class="dish-check" ${item.checked ? "checked" : ""} /> 加入订单
+          <input type="checkbox" class="dish-check" aria-label="选择${esc(dish.dishName)}" ${selected ? "checked" : ""} /><span>加入订单</span>
         </label>
       </div>
     </div>
@@ -346,6 +349,7 @@ function renderDishCard(dish, reason, primary) {
     } else {
       state.cart.delete(dish.dishNumber);
     }
+    card.classList.toggle("is-selected", check.checked);
     minus.disabled = qty <= 1;
     renderCartBar();
   }
@@ -392,6 +396,7 @@ function refreshCartUI() {
     const qty = item ? item.qty : 1;
     card.querySelector(".qty").textContent = qty;
     card.querySelector(".dish-check").checked = !!item;
+    card.classList.toggle("is-selected", !!item);
     card.querySelector(".step-minus").disabled = qty <= 1;
   });
   renderCartBar();
@@ -611,8 +616,10 @@ async function loadMenu(opts = {}) {
 $("#categoryFilter").addEventListener("click", (e) => {
   const chip = e.target.closest(".chip");
   if (!chip) return;
-  document.querySelectorAll("#categoryFilter .chip").forEach((c) => c.classList.remove("active"));
-  chip.classList.add("active");
+  document.querySelectorAll("#categoryFilter .chip").forEach((c) => {
+    c.classList.toggle("active", c === chip);
+    c.setAttribute("aria-pressed", String(c === chip));
+  });
   state.menu.category = chip.dataset.category;
   state.menu.pageNum = 1;
   loadMenu();
@@ -703,6 +710,18 @@ function orderActionsHtml(idx) {
   `;
 }
 
+function orderItemsHtml(items = []) {
+  return items.map((item) => `<div class="order-item-row"><span class="order-item-name">${esc(item.dishName)}</span><span class="order-item-quantity">× ${esc(item.quantity)}</span><strong>${esc(fmtMoney((item.priceAtTime ?? item.price) * item.quantity))}</strong></div>`).join("");
+}
+
+function orderCardHtml(order, idx, guest = false) {
+  const status = Object.prototype.hasOwnProperty.call(ORDER_STATUS_TEXT, order.orderStatus) ? order.orderStatus : "unknown";
+  return `<div class="order-head"><div class="order-heading-copy"><span class="order-kicker">${guest ? "本机游客订单" : "用餐记录"}</span><strong>订单 #${esc(order.orderNum)}</strong><time>${esc((order.orderTime || "").replace("T", " "))}</time></div><span class="order-status status-${status}">${esc(ORDER_STATUS_TEXT[status] || order.orderStatus || "状态待确认")}</span></div>
+    <div class="order-items">${orderItemsHtml(order.items || [])}</div>
+    <div class="order-total"><span>本餐合计</span><strong>${esc(fmtMoney(order.orderTotalMoney))}</strong></div>
+    ${orderActionsHtml(idx)}`;
+}
+
 /** 渲染本机游客订单（登录与否都显示，和账号订单区分开） */
 function renderGuestOrders() {
   const list = loadGuestOrders();
@@ -711,19 +730,7 @@ function renderGuestOrders() {
   section.classList.toggle("hidden", list.length === 0);
   if (list.length === 0) return;
 
-  box.innerHTML = list.map((order, idx) => `
-    <div class="order-card">
-      <div class="order-head">
-        <span>游客单 #${order.orderNum} · ${(order.orderTime || "").replace("T", " ")}</span>
-        <span class="order-status status-${esc(order.orderStatus || "")}">${ORDER_STATUS_TEXT[order.orderStatus] || order.orderStatus}</span>
-      </div>
-      <div class="order-items">
-        ${order.items.map((i) => `<div>${esc(i.dishName)} ×${i.quantity}　${fmtMoney(i.priceAtTime * i.quantity)}</div>`).join("")}
-      </div>
-      <div class="order-total">合计 ${fmtMoney(order.orderTotalMoney)}</div>
-      ${orderActionsHtml(idx)}
-    </div>
-  `).join("");
+  box.innerHTML = list.map((order, idx) => `<div class="order-card">${orderCardHtml(order, idx, true)}</div>`).join("");
 }
 
 /* ---------- 订单详情（小票）渲染：下单成功与「补评分」共用 ---------- */
@@ -731,12 +738,11 @@ const ORDER_STATUS_TEXT = { pending: "待处理", paid: "已支付", completed: 
 
 function renderOrderDetail(order) {
   $("#orderDetail").innerHTML = `
-    <div>订单号　#${order.orderNum}</div>
-    <div>时间　　${(order.orderTime || "").replace("T", " ")}</div>
-    <div>状态　　${ORDER_STATUS_TEXT[order.orderStatus] || order.orderStatus}</div>
-    <div>明细　　${(order.items || []).map((i) => `${esc(i.dishName)} ×${i.quantity}`).join("、")}</div>
-    <div class="detail-total">合计　　${fmtMoney(order.orderTotalMoney)}</div>
-    <div class="barcode"></div>
+    <div class="detail-meta"><span>订单号</span><strong>#${esc(order.orderNum)}</strong></div>
+    <div class="detail-meta"><span>下单时间</span><span>${esc((order.orderTime || "").replace("T", " "))}</span></div>
+    <div class="detail-meta"><span>订单状态</span><span>${esc(ORDER_STATUS_TEXT[order.orderStatus] || order.orderStatus)}</span></div>
+    <div class="order-items">${orderItemsHtml(order.items || [])}</div>
+    <div class="detail-total"><span>本餐合计</span><strong>${esc(fmtMoney(order.orderTotalMoney))}</strong></div>
   `;
 }
 
@@ -953,6 +959,7 @@ async function loadOrders() {
     return;
   }
   $("#emptyLoginBtn").classList.add("hidden");
+  $("#ordersEmptyText").textContent = "还没有用餐记录，去菜单里挑一份喜欢的吧。";
   try {
     const data = await api(`/orders/${owner.userId}?pageNum=1&pageSize=10`, {
       headers: { "X-User-Token": owner.token }, // 只使用本次请求所属身份
@@ -967,18 +974,7 @@ async function loadOrders() {
     list.forEach((order, idx) => {
       const card = document.createElement("div");
       card.className = "order-card";
-      card.innerHTML = `
-        <div class="order-head">
-          <span>订单 #${order.orderNum} · ${(order.orderTime || "").replace("T", " ")}</span>
-          <span class="order-status status-${esc(order.orderStatus || "")}">${ORDER_STATUS_TEXT[order.orderStatus] || order.orderStatus}</span>
-        </div>
-        <div class="order-items">
-          ${order.items.map((i) => `<div>${esc(i.dishName)} ×${i.quantity}　${fmtMoney(i.priceAtTime * i.quantity)}</div>`).join("")}
-        </div>
-        <div class="order-total">合计 ${fmtMoney(order.orderTotalMoney)}</div>
-        <div class="barcode"></div>
-        ${orderActionsHtml(idx)}
-      `;
+      card.innerHTML = orderCardHtml(order, idx);
       box.appendChild(card);
     });
   } catch (e) { /* msg 已提示 */ }
@@ -1046,6 +1042,7 @@ if (state.user && !state.user.token) {
 }
 renderLoginBtn();
 renderCartBar();
+document.querySelectorAll("#categoryFilter .chip").forEach((chip) => chip.setAttribute("aria-pressed", String(chip.classList.contains("active"))));
 window.OrderingUI = Object.freeze({
   api, authHeaders, toast, switchPage, handleAuthExpired,
   getUser: () => state.user,

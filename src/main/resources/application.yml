@@ -64,6 +64,8 @@ weather:
   api-key: ${QWEATHER_API_KEY}
   base-url: ${QWEATHER_BASE_URL}
   city-id: 101060101   # 长春
+  city-name: 长春
+  cache-ttl-seconds: 300
 
 admin:
   token: ${ADMIN_TOKEN}

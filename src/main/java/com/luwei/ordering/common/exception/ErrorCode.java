@@ -22,6 +22,7 @@ public enum ErrorCode {
     NOT_AUTH(401, "未授权用户"),
     LLM_SERVICE_UNAVAILABLE(504, "当前调用超时"),
     AGENT_BUSY(503,"当前聊天请求过多，请稍后重试"),
+    WEATHER_SERVICE_UNAVAILABLE(504, "当前调用异常"),
     CONVERSATION_CAPACITY_EXCEEDED(503, "当前会话较多，请稍后再试"),
     FORBIDDEN(403, "凭证与身份不符");
     private final int code;

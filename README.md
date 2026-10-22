@@ -4,9 +4,11 @@
 
 项目保留 V1 的菜单、推荐、订单和反馈接口，V2 在现有 Service 之上增加工具调用与草稿确认流程。
 
-> **当前进度（2026-10-21）**：M2 首版核心范围已完成收尾验收。新版真实页面已走通多轮推荐、数量与菜品调整、98→106→80 元报价、明确确认下单，以及口味候选保存、新对话读取和清除。Java 32 项及前端 18 项测试通过；本机缓存会话默认上限 100，另通过 12 项受控与 11 项真实 HTTP 容量检查。过程、数据库核对、截图和清理见[收尾记录](docs/m2-closeout-verification.md)。候选数量偏差仍待优化，M1 故障恢复和全面 V1 回归另行推进。
+> **当前进度（2026-10-22）**：在 M2 首版核心验收基础上，新增独立天气工具、结构化天气结果与按城市共享的 Redis 短时缓存。天气查询、结合天气推荐、服务失败降级及重启后的同步/SSE 链路已验证；缓存边界 12 项检查通过，真实联调确认跨会话复用且命中不续期。推送前重跑 Java 32 项、前端 18 项测试及脚本语法检查，全部通过。详见[天气验证记录](docs/m2-weather-verification.md)。
 
-![Agent 点餐首页](docs/images/agent-refined-desktop.png)
+M2 首版的多轮点餐、98→106→80 元报价、明确确认下单和长期口味闭环见[收尾记录](docs/m2-closeout-verification.md)。本机缓存会话默认上限 100；候选数量偏差、M1 故障恢复和全面 V1 回归仍保留为后续事项。
+
+![Agent 点餐首页](docs/images/agent-content-desktop.png)
 
 <details>
 <summary>查看真实下单与画像跨会话验收截图</summary>
@@ -28,13 +30,13 @@
 | 语言与构建 | Java 17、Maven Wrapper | 后端开发与构建 |
 | Web 框架 | Spring Boot 4.0.8、Spring MVC | REST 接口、参数校验、统一响应、SseEmitter 流式输出 |
 | 数据访问 | MyBatis Spring Boot Starter 4.0.1、MySQL | 菜品、订单、用户、长期口味画像、推荐记录与反馈持久化 |
-| 缓存与临时状态 | Redis、Spring Data Redis、Lua | 用户令牌、订单草稿、会话归属与实例元数据、原子校验及续期 |
+| 缓存与临时状态 | Redis、Spring Data Redis、Lua | 用户令牌、订单草稿、会话归属与实例元数据、原子校验及续期、按城市共享的天气缓存 |
 | Agent 编排与记忆 | LangChain4j 1.19.0；Spring Boot 4 Starter 1.19.0-beta29 | AI Services、工具调用、`@MemoryId` 与窗口记忆 |
 | 本地生命周期管理 | Spring `@Scheduled`、`ConcurrentHashMap`、`Semaphore` | 同会话并发拒绝、缓存会话总量限制、使用状态跟踪与空闲过期记忆清理 |
 | 对话模型 | DeepSeek `deepseek-chat` | 意图分析、推荐理由、工具选择与回复 |
 | 向量化模型 | BGE-M3（硅基流动 `Pro/BAAI/bge-m3`） | 菜品文本与查询向量化 |
 | 向量检索 | Qdrant；LangChain4j Qdrant 模块 1.19.0-beta29 | 语义召回、辣度与分类等元数据过滤 |
-| 外部数据 | 和风天气 API | 推荐 Service 的天气上下文，失败时跳过 |
+| 外部数据 | 和风天气 API | 独立天气工具与推荐上下文，结构化返回、超时与失败降级 |
 | 对象映射与校验 | MapStruct 1.6.3、Lombok、Jakarta Validation | DTO 映射、参数约束 |
 | 前端 | 原生 HTML / CSS / JavaScript、ES Modules | V2 SSE 聊天、报价确认与画像管理；保留 V1 页面及商户原型 |
 
@@ -51,11 +53,12 @@
 
 ### V2：工具调用与草稿确认
 
-入口为 `POST /agent/chat` 和 `POST /agent/chat/stream`，由同一个 `OrderingAgent` 调用 `DishTools` 中的五个工具；其中长期口味候选属于 M2：
+入口为 `POST /agent/chat` 和 `POST /agent/chat/stream`，由同一个 `OrderingAgent` 调用 `DishTools` 中的六个工具：
 
 | 工具 | 职责 | 返回结果 |
 | --- | --- | --- |
 | `queryMenu` | 查询当前在售菜单 | 菜品编号、名称、价格、分类与简介 |
+| `queryWeather` | 查询配置的门店城市当前天气，辅助回答天气问题或推荐 | 状态、城市、天气、温度、观测时间及获取时间；失败时说明服务不可用 |
 | `recommendDish` | 根据偏好、人数与可选预算获取候选菜品 | 候选菜、单价和推荐理由 |
 | `draftOrder` | 按菜品编号、数量和可选预算试算，并保存 Redis 草稿 | 明细、单价、小计、总额、超预算标记、草稿编号和有效期 |
 | `confirmOrder` | 验证明确确认与草稿归属，调用订单 Service | 正式订单编号、状态、金额与明细，或业务失败原因 |
@@ -68,6 +71,7 @@
 ```mermaid
 flowchart TD
     U["顾客描述需求"] --> A["OrderingAgent"]
+    A --> W["queryWeather：门店天气与共享缓存"]
     A --> Q["queryMenu / recommendDish：查询与推荐"]
     A --> D["draftOrder：后端核价"]
     D --> R["Redis 保存草稿，返回编号与报价"]
@@ -85,6 +89,16 @@ flowchart TD
 - **价格一致性**：创建订单时再次校验草稿单价，按本次查询的价格计算金额并保存明细快照。价格变化后需要重新试算、重新确认。
 - **重复提交处理**：按 `draftId` 查找已有订单并校验归属；并发创建遇到唯一键冲突时查询并返回已有订单，依赖数据库的 `orders.draft_id` 唯一索引。
 - **失败结果**：未确认、编号不一致、超预算、菜品下架、草稿失效或归属不符时，返回业务原因与后续处理建议。
+
+### M2：门店天气与共享缓存
+
+- **独立工具**：`queryWeather` 返回 `WeatherToolResult`，成功时包含 `WeatherInfoDTO`，失败时返回 `SERVICE_UNAVAILABLE`。只问天气时不继续推荐、试算或下单；天气建议服从用户明确的口味、忌口与预算。
+- **统一来源**：工具、天气 Controller 和推荐 Service 共用 `WeatherService.obtainCurrentWeather()`；旧的字符串方法仅负责转换与推荐场景的失败降级，外部请求集中在 `fetchCurrentWeather()`。
+- **缓存策略**：Redis Key 为 `weather:current:<cityId>`，Value 为天气 DTO 的 JSON；`weather.cache-ttl-seconds` 默认配置为 300 秒。命中后直接复用，不续期、不修改观测时间与获取时间；过期后由下次请求重新查询。
+- **失败处理**：缓存读取、JSON 解析或字段校验失败时继续请求天气；写缓存失败仍返回已取得的天气。天气接口失败保留业务异常，不写失败缓存，推荐可以继续按口味与预算执行。
+- **首版范围**：城市名称与编号来自 YAML，当前配置为长春；仅支持门店当前天气，不提供任意城市查询或天气预报。缓存有效期与上游观测时间分别保留，不把读取缓存的时间当成新观测时间。
+
+12 项缓存边界检查及重启后的 4 次真实 HTTP 请求通过，包含不同游客、不同会话、推荐链路和 SSE；验收过程、TTL 数据与已知边界见[天气验证记录](docs/m2-weather-verification.md)。
 
 ### M2：短期会话记忆与生命周期
 
@@ -124,13 +138,13 @@ flowchart TD
 
 报价卡展示菜品、份数、单价、小计、预算及有效期；用户核对后打开确认弹窗，再明确提交同一 `confirmedDraftId`。超预算、过期或被新试算替代的报价不能从旧按钮提交，最终仍由后端核验。正式订单展示真实回执；游客回执按订单号去重并保存到既有本机订单区。
 
-保留快捷点餐、浏览菜单和历史订单入口。身份切换会结束当前接收并清空页面对话；同页切换保留聊天，刷新页面开启新对话，目前没有历史聊天列表。界面和实现阅读顺序见[前端说明](docs/m2-frontend-verification.md)。
+保留快捷点餐、浏览菜单和历史订单入口。AI 首页新增可切换的本地灵感卡；菜单、快捷点餐和订单回执统一卡片样式，分类筛选与购物车选中状态保持同步。身份切换会结束当前接收并清空页面对话；同页切换保留聊天，刷新页面开启新对话，目前没有历史聊天列表。界面、截图和实现阅读顺序见[前端说明](docs/m2-frontend-verification.md)。
 
 ## 当前边界与后续计划
 
 | 项目 | 当前状态 |
 | --- | --- |
-| Agent 四个点餐工具与确认流程 | 核心闭环及主要拒绝、身份、重试、并发场景已联调；另已新增 M2 口味候选工具，完整故障恢复与 V1 回归待补齐 |
+| Agent 六个工具与确认流程 | 四个核心点餐工具、口味候选和天气工具已接入；主要拒绝、身份、重试、并发场景已联调，完整故障恢复与 V1 回归待补齐 |
 | 跨请求聊天记忆 | 已接入；多轮记忆、游客与两个注册用户之间的隔离、同用户换 token 续聊已验证 |
 | 会话过期与本机清理 | 已实现滑动有效期、定时清理和调用中保护；已有真实 HTTP 与受控程序分阶段验证 |
 | 自动续期与同会话并发消息 | Lua 原子校验及续期已实现；单实例同会话忙碌时明确拒绝，不同会话可并行 |
@@ -141,7 +155,7 @@ flowchart TD
 | Agent 前端 | 默认 AI 点餐页已接入；新版真实页面多轮调整、报价、明确下单及画像闭环通过，V1 入口继续保留 |
 | Agent 个性化推荐 | 长期口味已作为默认上下文；推荐工具仍未透传登录用户身份参与历史评分重排 |
 | 推荐输出规范 | 报价边界的两个真实样例回归通过；请求 2～3 道菜时仍出现列出 4 道的数量偏差，待优化 |
-| 天气工具 | 天气由推荐 Service 内部调用，尚未封装为独立 Agent 工具 |
+| 天气工具与共享缓存 | 独立工具、门店城市天气与 300 秒 Redis 缓存已验证；支持失败降级，命中不续期，保留真实观测时间 |
 | 商户页面 | 仓库根目录提供界面原型，尚未接入后端 |
 | 支付、取消、历史查询工具 | Agent 尚未提供这些工具；订单管理接口与真实支付接入是不同能力 |
 
@@ -153,6 +167,7 @@ flowchart TD
 | --- | --- | --- | --- |
 | POST | `/agent/chat` | V2 自然语言点餐与工具调用 | 支持游客；注册用户传令牌 |
 | POST | `/agent/chat/stream` | V2 SSE 流式回复，最终事件包含结构化候选 | 支持游客；注册用户传令牌 |
+| GET | `/weather` | 查询结构化门店天气，共用短时缓存 | 当前需有效用户令牌；游客可通过 Agent 查询 |
 | GET | `/dishes`、`/dishes/{dishNumber}` | 菜单列表、菜品详情 | 公开 |
 | POST | `/recommendations` | V1 智能推荐 | 支持游客；个性化推荐需用户身份 |
 | POST | `/orders` | V1 创建订单 | 公开；传入 userId 时检查用户存在及状态 |
@@ -250,10 +265,11 @@ flowchart TD
 - 候选生成：17 项工具直接调用与 7 项真实 HTTP 行为检查通过，覆盖空参数、字段保留、200/201 字边界、游客、候选改写及未确认不持久化。
 - 结构化候选：从实际工具结果提取字段，候选确认保存与下一轮读取完成真实链路验证，保留独立 PUT 的确认边界。
 - 流式聊天：9 项真实 HTTP、模型、MySQL 与 Redis 检查通过，覆盖增量输出、续聊、同步共享记忆、真实工具、结构化候选及入口拒绝；检查未新增订单、草稿或修改长期画像。
-- 自动化检查：2026-10-21 适配现有 Controller 测试的容量初始化后，重跑 `./mvnw -o -q test`，32 项 Java 测试全部通过；前端升级后重跑 18 项 Node 测试及两个脚本语法检查，通过。覆盖范围见 SSE、前端、容量及收尾验证记录。
+- 自动化检查：2026-10-22 推送前重跑 `./mvnw -q test`，32 项 Java 测试全部通过；18 项 Node 测试及两个脚本语法检查通过。覆盖范围见 SSE、前端、容量及收尾验证记录。
+- 天气与缓存：正常查询、gzip、上游异常、超时与失败降级完成分阶段检查；最新实现通过 12 项缓存边界检查，以及重启后的连续天气查询、跨游客推荐和 SSE 共用缓存检查。Redis TTL 持续减少、数据及时间字段不变，订单、草稿与画像未新增，详见[天气验证记录](docs/m2-weather-verification.md)。
 - 浏览器联调：先前完成真实续聊、16 元草稿及取消确认；新版后续又通过多轮调整、98/106/80 元报价和明确下单，MySQL 核对 1 笔订单、3 条明细及 80 元合计；真实画像确认保存、新会话读取、取消清除和明确清除通过，专用账号及写入数据已清理。步骤及截图见[收尾记录](docs/m2-closeout-verification.md)。隔离服务的断流、身份切换和 101 道菜跨页等结果另按前端初次记录保留。
 
-慢模型、Redis 故障和实例切换采用可控模拟，临时验证程序及产物已删除；画像测试恢复原记录并清理本轮 token 与 Redis 会话。各轮针对当时实现验收，未对最新代码执行整套自动化业务回归，也不是持续集成记录；范围与复测步骤见[会话验证记录](docs/m2-memory-verification.md)和[长期画像验证记录](docs/m2-preference-verification.md)。
+慢模型、Redis 故障和实例切换采用可控模拟，临时验证程序及产物已删除；画像测试恢复原记录并清理本轮 token 与 Redis 会话。仓库已有自动化测试已针对本次代码重跑；历次手工业务验收仍按当时实现记录，未重新执行全部历史用例，也未接入持续集成。范围与复测步骤见[会话验证记录](docs/m2-memory-verification.md)、[长期画像验证记录](docs/m2-preference-verification.md)和[天气验证记录](docs/m2-weather-verification.md)。
 
 ## 本地运行
 
@@ -299,6 +315,8 @@ $env:ADMIN_TOKEN = "<商户令牌>"
 
 macOS / Linux 设置相同环境变量后，使用 `./mvnw spring-boot:run` 启动。
 
+天气城市与缓存时间配置在 `application.yml` 的 `weather` 下：`city-id` 与 `city-name` 应对应同一门店城市，`cache-ttl-seconds` 当前为 300。现有请求沿用和风天气 V7 接口，供应商接口升级单独安排。
+
 ### 3. 访问与联调
 
 - 用户端：[http://localhost:8080/user-frontend/index.html](http://localhost:8080/user-frontend/index.html)。默认打开 AI 点餐，导航保留 V1 快捷点餐、菜单和订单。
@@ -314,7 +332,7 @@ macOS / Linux 设置相同环境变量后，使用 `./mvnw spring-boot:run` 启�
 node --test src/test/frontend/agent-client.test.mjs
 ```
 
-本轮 Java 测试 32 项、前端测试 18 项通过。前端测试使用 Node.js 内置测试工具，无需安装 npm 依赖。容量验证中的 12 项受控检查与 11 项真实 HTTP 检查属于单独的阶段验收，未计入这 50 项持久测试；详细范围见[容量记录](docs/m2-capacity-verification.md)和[收尾记录](docs/m2-closeout-verification.md)。
+本轮 Java 测试 32 项、前端测试 18 项通过。前端测试使用 Node.js 内置测试工具，无需安装 npm 依赖。容量与天气的临时受控检查、真实 HTTP 检查属于单独阶段验收，未计入这 50 项持久测试；详细范围见[容量记录](docs/m2-capacity-verification.md)、[天气记录](docs/m2-weather-verification.md)和[收尾记录](docs/m2-closeout-verification.md)。
 
 ## 目录结构
 
@@ -350,6 +368,8 @@ smart-ordering-system
 - [会话记忆与生命周期验证记录（更新至 2026-10-20）](docs/m2-memory-verification.md)
 - [长期口味画像与候选生成验证记录](docs/m2-preference-verification.md)
 - [SSE 协议与验证记录](docs/m2-sse-verification.md)
+- [天气工具与 Redis 共享缓存验证记录](docs/m2-weather-verification.md)
+- [M2 后续体验打磨待办](docs/m2-refinement-todo.md)
 - [Agent 前端实现、验证与讲解顺序](docs/m2-frontend-verification.md)
 - [业务建模](docs/智能点餐系统业务建模.md)
 - [数据库设计思路](docs/智能点餐系统数据库设计思路.md)
