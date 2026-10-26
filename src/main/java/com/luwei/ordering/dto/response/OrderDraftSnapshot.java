@@ -20,6 +20,8 @@ public class OrderDraftSnapshot {
     private String draftId;
     private String ownerKey;
     private DraftOrderResponse quote;
+    //replace草稿订单号，存谁把当前的草稿替换了，要是没有就直接填null
+    private String replacedByDraftId;
     private LocalDateTime createdAt;
     private LocalDateTime expireAt;
 }

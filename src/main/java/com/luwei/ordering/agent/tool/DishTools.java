@@ -183,7 +183,8 @@ public class DishTools {
     }
 
     @Tool("用户确认订单后，用于正式下单")
-    public ConfirmOrderToolResult confirmOrder(@P(value = "待确认的草稿编号", required = true) String draftId,
+    public
+    ConfirmOrderToolResult confirmOrder(@P(value = "待确认的草稿编号", required = true) String draftId,
                                                InvocationParameters parameters) {
         if (parameters == null || draftId == null || draftId.isBlank()) {
             return new ConfirmOrderToolResult(
@@ -270,6 +271,25 @@ public class DishTools {
                 );
 
             }
+
+            if(e.getErrorCode() == ErrorCode.DRAFT_BUSY){
+                return new ConfirmOrderToolResult(
+                        ConfirmOrderToolResult.Status.INVALID_ARGUMENTS,
+                        null,
+                        "该报价正在处理中，本次确认请求未执行。",
+                        "说明报价正在处理，结束本轮操作，不自动重试，也不能断言订单失败。"
+                );
+            }
+
+            if(e.getErrorCode() == ErrorCode.DRAFT_REPLACED){
+                return new ConfirmOrderToolResult(
+                        ConfirmOrderToolResult.Status.INVALID_ARGUMENTS,
+                        null,
+                        "订单旧报价已被替换",
+                        "请用户核对最新报价并重新确认，不能自动换编号下单"
+                );
+            }
+
             throw e;
         }
         return new ConfirmOrderToolResult(

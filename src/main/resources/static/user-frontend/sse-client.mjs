@@ -102,10 +102,11 @@ export async function consumeAgentStream(response, handlers = {}) {
 }
 
 export async function streamAgentChat(options) {
-  const { baseUrl = "", token, message, conversationId, confirmedDraftId,
+  const { baseUrl = "", token, message, conversationId, currentDraftId, confirmedDraftId,
     signal, fetchImpl = fetch, ...handlers } = options;
   const payload = { message };
   if (conversationId) payload.conversationId = conversationId;
+  if (currentDraftId) payload.currentDraftId = currentDraftId;
   if (confirmedDraftId) payload.confirmedDraftId = confirmedDraftId;
   const response = await fetchImpl(`${baseUrl}/agent/chat/stream`, {
     method: "POST",

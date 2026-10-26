@@ -219,7 +219,13 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .composer-help kbd { font: inherit; }
 .chat-notice { padding: 10px 13px; margin-bottom: 10px; background: var(--accent-soft); border: 1px solid #efd9cb; border-radius: 10px; color: var(--accent-deep); font-size: 12px; line-height: 1.8; }
 .chat-notice button, .chat-notice a { border: 0; border-bottom: 1px solid currentColor; color: inherit; font: inherit; background: none; margin-left: 8px; cursor: pointer; }
-.jump-latest { position: absolute; top: -36px; left: 50%; transform: translateX(-50%); border: 1px solid #e2e7d7; border-radius: 20px; padding: 8px 14px; color: #7b886c; background: #fff; box-shadow: 0 3px 10px #34442509; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.jump-latest { position: absolute; top: -36px; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 9px; min-height: 36px; border: 1px solid #dce3cc; border-radius: 22px; padding: 9px 14px; color: #7b886c; background: #fffef9; box-shadow: 0 5px 18px #34442512; font-size: 11px; cursor: pointer; white-space: nowrap; z-index: 1; }
+.jump-latest > .icon { width: 14px; height: 14px; transform: rotate(90deg); }
+.jump-latest:hover { background: #f1f4e8; border-color: #becba5; }
+.jump-latest.has-unread { color: #5b7144; border-color: #b5c79b; background: #edf3e3; }
+.jump-latest.has-unread::before { content: ""; width: 5px; height: 5px; flex-shrink: 0; background: #88a263; border-radius: 50%; box-shadow: 0 0 0 3px #92ae6b15; }
+.conversation-starters button.is-selected { border-color: #a2b58a; box-shadow: inset 0 0 0 1px #a2b58a45, 0 5px 12px #52693a08; }
+.conversation-starters button.is-selected .starter-arrow { transform: none; color: #6d8650; }
 
 /* Personal taste and quiet guidance. */
 .dining-sidebar { min-width: 0; min-height: 0; padding: 12px 0 8px; border: 0; background: transparent; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #d4d7c5 transparent; }
@@ -287,6 +293,28 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .quote-line b { display: block; color: #626f4f; font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
 .quote-items .quote-line small { display: block; font-size: 10px; line-height: 1.8; color: #a4a58b; margin-top: 2px; }
 .quote-line-total { color: #6e795a; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.quote-quantity { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; }
+.quote-quantity button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid #d9ddca; border-radius: 8px; background: #fffef8; color: #667a51; font: 16px var(--sans); cursor: pointer; }
+.quote-quantity button:hover:not(:disabled) { background: #eaf0df; border-color: #b1c398; }
+.quote-quantity button:disabled { opacity: .4; cursor: not-allowed; }
+.quote-quantity-value { min-width: 19px; text-align: center; font: 500 12px var(--sans); color: #6b7a55; font-variant-numeric: tabular-nums; }
+.quote-quantity-unit { font-size: 10px; color: #a3a68f; }
+.quote-items .quote-line .quote-item-end { display: flex; align-self: stretch; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.quote-item-end > button { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 8px; background: transparent; color: #9da68e; cursor: pointer; }
+.quote-item-end > button .icon { width: 14px; height: 14px; }
+.quote-item-end > button:hover:not(:disabled) { color: #b27a55; background: #f5eadd; }
+.quote-item-end > button:disabled { opacity: .35; cursor: not-allowed; }
+.quote-edit-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+.quote-edit-actions .revise-quote { min-height: 36px; padding: 8px 14px; font-size: 12px; letter-spacing: 0; background: #edf1e3; color: #718656; border-color: #cbd7b7; }
+.quote-edit-actions .revise-quote:disabled { opacity: .45; cursor: not-allowed; }
+.restore-quote { padding: 7px 0; border: 0; background: none; color: #8e9c7a; font: 10px var(--sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.restore-quote:disabled { opacity: .4; cursor: not-allowed; }
+.tool-card .quote-edit-feedback { margin-top: 13px; font-size: 10px; color: #959d82; }
+.tool-card .quote-edit-feedback.is-error { color: #b3714f; }
+.quote-items .quote-editor-empty { display: block; padding: 14px 0; font-size: 12px; color: #a78d64; line-height: 1.8; }
+.has-quote-edits .quote-total strong { font-size: 21px; letter-spacing: 0; }
+.tool-card.is-superseded { border-style: dashed; background: #f7f6ed; box-shadow: none; }
+.tool-card.is-superseded .card-badge { color: #9ca58a; background: #eef0e4; border-color: #dfe3d2; }
 .quote-total { display: flex; justify-content: space-between; align-items: center; margin: 20px 0 8px; color: #7e846c; }
 .quote-total > span { font-size: 12px; }
 .quote-total > span > small { display: block; font-size: 9px; color: #b0aa94; margin-top: 5px; }

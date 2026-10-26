@@ -6,16 +6,8 @@ import com.luwei.ordering.common.exception.BusinessException;
 import com.luwei.ordering.common.exception.ErrorCode;
 import com.luwei.ordering.concurrent.AgentChatConcurrencyLimiter;
 import com.luwei.ordering.dto.request.AgentChatRequest;
-import com.luwei.ordering.dto.response.AgentChatResponse;
-import com.luwei.ordering.dto.response.ApiResponse;
-import com.luwei.ordering.dto.response.ConfirmOrderToolResult;
-import com.luwei.ordering.dto.response.DraftOrderToolResult;
-import com.luwei.ordering.dto.response.UserPreferenceDTO;
-import com.luwei.ordering.dto.response.UserPreferenceProposalToolResult;
-import com.luwei.ordering.service.ConversationMemoryService;
-import com.luwei.ordering.service.ConversationService;
-import com.luwei.ordering.service.TokenService;
-import com.luwei.ordering.service.UserPreferenceService;
+import com.luwei.ordering.dto.response.*;
+import com.luwei.ordering.service.*;
 import dev.langchain4j.invocation.InvocationParameters;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.tool.ToolExecution;
@@ -37,6 +29,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.luwei.ordering.common.exception.ErrorCode.DRAFT_NOT_FOUND_OR_EXPIRED;
+import static com.luwei.ordering.common.exception.ErrorCode.DRAFT_REPLACED;
+
 @RestController
 @RequestMapping("/agent")
 @RequiredArgsConstructor
@@ -49,6 +44,7 @@ public class AgentChatController {
     private final ConversationMemoryService conversationMemoryService;
     private final UserPreferenceService userPreferenceService;
     private final ObjectMapper objectMapper;
+    private final OrderDraftService orderDraftService;
     private final AgentChatConcurrencyLimiter concurrencyLimiter;
 
     @PostMapping("/chat")
@@ -79,6 +75,9 @@ public class AgentChatController {
             profileData.put("spicyLevel", userPreference.getSpicyLevel());
             profileData.put("preferenceText", userPreference.getPreferenceText());
         }
+
+        //获取当前草稿订单上下文
+        String currentDraftSnapshot = buildCurrentDraftContext(ownerKey, req.getCurrentDraftId());
 
         String profileContext = objectMapper.writeValueAsString(profileData);
 
@@ -119,7 +118,7 @@ public class AgentChatController {
             ConfirmOrderToolResult orderResult = null;
 
             try {
-                Result<String> result = orderingAgent.chat(req.getMessage(), parameters, profileContext, conversationId);
+                Result<String> result = orderingAgent.chat(req.getMessage(), parameters, profileContext, currentDraftSnapshot, conversationId);
                 log.info("当前Agent工具调用次数:{}", result.toolExecutions().size());
                 for (ToolExecution execution : result.toolExecutions()) {
                     if ("proposeUserPreference".equals(execution.request().name())) {
@@ -200,6 +199,7 @@ public class AgentChatController {
             ownerKey = "user:" + userId;
         }
 
+
         //创建一个profileData来存用户的口味偏好
         Map<String, Object> profileData = new LinkedHashMap<>();
 
@@ -207,6 +207,9 @@ public class AgentChatController {
             profileData.put("spicyLevel", userPreference.getSpicyLevel());
             profileData.put("preferenceText", userPreference.getPreferenceText());
         }
+
+        //获取当前草稿订单上下文
+        String currentDraftSnapshot = buildCurrentDraftContext(ownerKey, req.getCurrentDraftId());
 
         //把上述的profileData转成文本的给LLM看
         String profileContext = objectMapper.writeValueAsString(profileData);
@@ -273,7 +276,7 @@ public class AgentChatController {
                     () -> releaseStreamResources(conversationId, resourcesReleased));
             //启动session，返回emitter
             session.start(() -> orderingAgent.chatStream(
-                    req.getMessage(), parameters, profileContext, conversationId));
+                    req.getMessage(), parameters, profileContext, currentDraftSnapshot, conversationId));
 
             return emitter;
         } catch (RuntimeException | Error e) {
@@ -295,6 +298,42 @@ public class AgentChatController {
             conversationMemoryService.endUse(conversationId);
         } finally {
             concurrencyLimiter.release();
+        }
+    }
+    private String buildCurrentDraftContext(
+            String ownerKey,
+            String currentDraftId) {
+
+        // 没有指定草稿，普通聊天继续进行
+        if (currentDraftId == null) {
+            return "";
+        }
+
+        try {
+            OrderDraftSnapshot snapshot =
+                    orderDraftService.getDraft(currentDraftId, ownerKey);
+
+            // 只取模型需要的数据
+            ReviseDraftResponse context = new ReviseDraftResponse(
+                    snapshot.getDraftId(),
+                    snapshot.getExpireAt(),
+                    snapshot.getQuote()
+            );
+
+            return objectMapper.writeValueAsString(context);
+
+        } catch (BusinessException e) {
+            if (e.getErrorCode() == ErrorCode.DRAFT_NOT_FOUND_OR_EXPIRED
+                    || e.getErrorCode() == ErrorCode.DRAFT_REPLACED) {
+
+                return objectMapper.writeValueAsString(Map.of(
+                        "status", "UNAVAILABLE",
+                        "message", "当前报价已失效，需要重新试算"
+                ));
+            }
+
+            // 越权、参数错误等情况，仍然拒绝本次请求
+            throw e;
         }
     }
 }

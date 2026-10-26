@@ -15,7 +15,7 @@ const API_BASE =
 const CATEGORY_MAP = {
   meat:      { key: "meat", icon: "bowl", label: "荤菜" },
   vegetable: { key: "vegetable", icon: "leaf", label: "素菜" },
-  drink:     { key: "drink", icon: "menu", label: "饮品" },
+  drink:     { key: "drink", icon: "cup", label: "饮品" },
   soup:      { key: "soup", icon: "bowl", label: "汤羹" },
 };
 function categoryOf(dish) {
@@ -29,7 +29,7 @@ const state = {
   serverOrders: [],  // 最近一次拉取的账号订单，供「再来一单 / 评分」取用
   page: "agent",
   // all：一次性拉回的在售菜品缓存；分页和分类都在前端做
-  menu: { pageNum: 1, pageSize: 12, totalPages: 1, category: "", all: null },
+  menu: { pageNum: 1, pageSize: 12, totalPages: 1, category: "", query: "", sort: "default", all: null },
 };
 
 function readStoredUser() {
@@ -134,6 +134,7 @@ const esc = (s) =>
  * 页面路由（单页切换）
  * ========================================================= */
 function switchPage(page) {
+  if ($("#cartDialog").open) $("#cartDialog").close();
   state.page = page;
   document.body.classList.toggle("agent-mode", page === "agent");
   document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
@@ -330,7 +331,7 @@ function renderDishCard(dish, reason, primary) {
           <button class="step-plus" aria-label="增加${esc(dish.dishName)}的数量">+</button>
         </div>
         <label class="check-label">
-          <input type="checkbox" class="dish-check" aria-label="选择${esc(dish.dishName)}" ${selected ? "checked" : ""} /><span>加入订单</span>
+          <input type="checkbox" class="dish-check" aria-label="选择${esc(dish.dishName)}" ${selected ? "checked" : ""} /><span>${selected ? "已加入" : "加入这一餐"}</span>
         </label>
       </div>
     </div>
@@ -350,6 +351,7 @@ function renderDishCard(dish, reason, primary) {
       state.cart.delete(dish.dishNumber);
     }
     card.classList.toggle("is-selected", check.checked);
+    card.querySelector(".check-label span").textContent = check.checked ? "已加入" : "加入这一餐";
     minus.disabled = qty <= 1;
     renderCartBar();
   }
@@ -396,6 +398,7 @@ function refreshCartUI() {
     const qty = item ? item.qty : 1;
     card.querySelector(".qty").textContent = qty;
     card.querySelector(".dish-check").checked = !!item;
+    card.querySelector(".check-label span").textContent = item ? "已加入" : "加入这一餐";
     card.classList.toggle("is-selected", !!item);
     card.querySelector(".step-minus").disabled = qty <= 1;
   });
@@ -564,6 +567,11 @@ async function loadMenu(opts = {}) {
   const version = ++menuLoadVersion;
   if (opts.refresh) state.menu.all = null; // 进页面时拉最新；切分类/翻页走缓存
   $("#menuLoading").classList.remove("hidden");
+  $("#menuCards").setAttribute("aria-busy", "true");
+  if (!state.menu.all) {
+    $("#menuCards").innerHTML = '<div class="menu-skeleton" aria-hidden="true"><i></i><i></i><i></i><i></i></div>'.repeat(6);
+    $("#menuPager").classList.add("hidden");
+  }
   try {
     if (!state.menu.all) {
       const data = await api(`/dishes?pageNum=1&pageSize=${MENU_FETCH_SIZE}&status=available`);
@@ -578,40 +586,68 @@ async function loadMenu(opts = {}) {
     }
     if (version !== menuLoadVersion) return;
 
-    const { pageSize, category, all } = state.menu;
-    const filtered = category ? all.filter((d) => d.category === category) : all;
-
-    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-    if (state.menu.pageNum > totalPages) state.menu.pageNum = totalPages;
-    const pageNum = state.menu.pageNum;
-    const list = filtered.slice((pageNum - 1) * pageSize, pageNum * pageSize);
-
-    $("#menuCount").textContent = `共 ${filtered.length} 道菜`;
-
-    const box = $("#menuCards");
-    box.innerHTML = "";
-    if (list.length === 0) {
-      box.innerHTML = '<div class="empty-tip" style="grid-column:1/-1">这个分类暂时没有菜</div>';
-    }
-    // 菜单页没有推荐理由，改用菜品简介，点开可看全文
-    list.forEach((dish) => box.appendChild(renderDishCard(dish, dish.dishIntroduction, false)));
-
-    refreshCartUI(); // 按购物车回写勾选与数量（跨页回来时也不会丢）
-
-    $("#menuPageInfo").textContent = `${pageNum} / ${totalPages}`;
-    $("#menuPrev").disabled = pageNum <= 1;
-    $("#menuNext").disabled = pageNum >= totalPages;
-    // 只有一页时分页器是纯噪音（两个灰按钮 + "1 / 1"）
-    $("#menuPager").classList.toggle("hidden", totalPages <= 1);
+    renderMenu();
   } catch (e) {
     if (version !== menuLoadVersion) return;
     $("#menuCount").textContent = "菜单暂时不可用";
-    $("#menuCards").innerHTML = '<div class="empty-tip" style="grid-column:1/-1">菜单加载失败，请稍后重新进入菜单页。</div>';
+    $("#menuCards").innerHTML = '<div class="menu-empty"><svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg><h2>菜单暂时没有准备好</h2><p>稍后再试一次，看看今天有什么好吃的。</p><button type="button" class="btn-ghost" id="retryMenu">重新加载</button></div>';
+    $("#retryMenu").addEventListener("click", () => loadMenu({ refresh: true }));
     $("#menuPager").classList.add("hidden");
   } finally {
-    if (version === menuLoadVersion) $("#menuLoading").classList.add("hidden");
+    if (version === menuLoadVersion) {
+      $("#menuLoading").classList.add("hidden");
+      $("#menuCards").setAttribute("aria-busy", "false");
+    }
   }
 }
+
+function renderMenu() {
+  const { pageSize, category, all, query, sort } = state.menu;
+  if (!all) return; // An in-flight load renders the most recent search when it completes.
+  const words = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const filtered = all.filter((dish) => (!category || dish.category === category) && words.every((word) =>
+    `${dish.dishName || ""} ${dish.dishIntroduction || ""}`.toLocaleLowerCase().includes(word)));
+  if (sort !== "default") filtered.sort((a, b) => (Number(a.price) - Number(b.price)) * (sort === "price-asc" ? 1 : -1));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  state.menu.pageNum = Math.max(1, Math.min(state.menu.pageNum, totalPages));
+  const pageNum = state.menu.pageNum;
+  $("#menuCount").textContent = query.trim() ? `找到 ${filtered.length} 道菜` : `共 ${filtered.length} 道菜`;
+  const box = $("#menuCards");
+  box.replaceChildren();
+  if (!filtered.length) {
+    box.innerHTML = '<div class="menu-empty"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><h2>换个口味，继续找找</h2><p>暂时没有符合条件的菜，可以试试其他关键词或分类。</p><button type="button" class="btn-ghost" id="resetMenuFilters">查看全部菜品</button></div>';
+    $("#resetMenuFilters").addEventListener("click", () => {
+      state.menu.query = "";
+      $("#menuSearch").value = "";
+      $("#clearMenuSearch").classList.add("hidden");
+      $("#categoryFilter .chip[data-category='']").click();
+      $("#menuSearch").focus();
+    });
+  }
+  filtered.slice((pageNum - 1) * pageSize, pageNum * pageSize).forEach((dish) => box.appendChild(renderDishCard(dish, dish.dishIntroduction, false)));
+  refreshCartUI();
+  $("#menuPageInfo").textContent = `${pageNum} / ${totalPages}`;
+  $("#menuPrev").disabled = pageNum <= 1;
+  $("#menuNext").disabled = pageNum >= totalPages;
+  $("#menuPager").classList.toggle("hidden", totalPages <= 1);
+}
+
+$("#menuSearch").addEventListener("input", () => {
+  state.menu.query = $("#menuSearch").value;
+  state.menu.pageNum = 1;
+  $("#clearMenuSearch").classList.toggle("hidden", !state.menu.query);
+  renderMenu();
+});
+$("#clearMenuSearch").addEventListener("click", () => {
+  $("#menuSearch").value = "";
+  $("#menuSearch").dispatchEvent(new Event("input"));
+  $("#menuSearch").focus();
+});
+$("#menuSort").addEventListener("change", () => {
+  state.menu.sort = $("#menuSort").value;
+  state.menu.pageNum = 1;
+  renderMenu();
+});
 
 $("#categoryFilter").addEventListener("click", (e) => {
   const chip = e.target.closest(".chip");
@@ -622,10 +658,15 @@ $("#categoryFilter").addEventListener("click", (e) => {
   });
   state.menu.category = chip.dataset.category;
   state.menu.pageNum = 1;
-  loadMenu();
+  renderMenu();
 });
-$("#menuPrev").addEventListener("click", () => { state.menu.pageNum--; loadMenu(); });
-$("#menuNext").addEventListener("click", () => { state.menu.pageNum++; loadMenu(); });
+function turnMenuPage(offset) {
+  state.menu.pageNum += offset;
+  renderMenu();
+  $(".menu-discovery").scrollIntoView({ block: "start", behavior: "instant" });
+}
+$("#menuPrev").addEventListener("click", () => turnMenuPage(-1));
+$("#menuNext").addEventListener("click", () => turnMenuPage(1));
 
 /* =========================================================
  * 底部下单栏 + 下单
@@ -638,10 +679,64 @@ function renderCartBar() {
   });
   $("#cartCount").textContent = count;
   $("#cartTotal").textContent = fmtMoney(total);
+  $("#openCart").setAttribute("aria-label", `查看已选清单，${count}份，预估合计${fmtMoney(total)}`);
   const empty = state.cart.size === 0 || state.page === "agent";
   $("#cartBar").classList.toggle("hidden", empty);
   document.body.classList.toggle("has-cart", !empty); // 底部留白跟着购物车栏走
+  if ($("#cartDialog").open) renderCartDialog();
 }
+
+function renderCartDialog() {
+  const focus = document.activeElement?.closest("[data-cart-action]");
+  const focusAction = focus?.dataset.cartAction;
+  const focusDish = focus?.closest("[data-cart-dish]")?.dataset.cartDish;
+  let count = 0, total = 0;
+  const box = $("#cartItems");
+  box.innerHTML = [...state.cart.values()].map(({ dish, qty }) => {
+    count += qty;
+    total += Number(dish.price) * qty;
+    const category = categoryOf(dish);
+    return `<article class="cart-item" data-cart-dish="${esc(dish.dishNumber)}"><span class="dish-category-symbol is-${category.key}" aria-hidden="true"><svg class="icon"><use href="#i-${category.icon}"/></svg></span><div class="cart-item-copy"><h3>${esc(dish.dishName)}</h3><p>${esc(fmtMoney(dish.price))} / 份</p><div class="stepper"><button type="button" data-cart-action="minus" aria-label="减少${esc(dish.dishName)}的数量" ${qty <= 1 ? "disabled" : ""}>−</button><span class="qty">${qty}</span><button type="button" data-cart-action="plus" aria-label="增加${esc(dish.dishName)}的数量">+</button></div></div><div class="cart-item-end"><button type="button" data-cart-action="remove" aria-label="移除${esc(dish.dishName)}"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button><strong>${esc(fmtMoney(Number(dish.price) * qty))}</strong></div></article>`;
+  }).join("");
+  if (!state.cart.size) box.innerHTML = '<div class="cart-empty"><svg class="icon" aria-hidden="true"><use href="#i-bag"/></svg><h3>给这一餐，添点喜欢的</h3><p>清单还是空的，去菜单里慢慢挑吧。</p></div>';
+  $("#cartDialogCount").textContent = count;
+  $("#cartDialogTotal").textContent = fmtMoney(total);
+  if (focusAction) {
+    const row = [...box.querySelectorAll("[data-cart-dish]")].find((element) => element.dataset.cartDish === focusDish);
+    const target = row?.querySelector(`[data-cart-action="${focusAction}"]:not(:disabled)`) || row?.querySelector('[data-cart-action="plus"]') || box.querySelector('[data-cart-action="remove"]') || $("#continueOrdering");
+    target.focus({ preventScroll: true });
+  }
+}
+$("#openCart").addEventListener("click", () => {
+  renderCartDialog();
+  $("#cartUpdateStatus").textContent = "";
+  $("#cartDialog").showModal();
+  document.body.classList.add("cart-open");
+  $("#closeCart").focus();
+});
+$("#closeCart").addEventListener("click", () => $("#cartDialog").close());
+$("#continueOrdering").addEventListener("click", () => $("#cartDialog").close());
+$("#cartDialog").addEventListener("close", () => {
+  document.body.classList.remove("cart-open");
+  if (!state.cart.size) (state.page === "menu" ? $("#menuSearch") : $("#preferenceInput")).focus({ preventScroll: true });
+});
+$("#cartDialog").addEventListener("click", (event) => {
+  if (event.target !== $("#cartDialog")) return;
+  const rect = event.target.getBoundingClientRect();
+  if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) event.target.close();
+});
+$("#cartItems").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-cart-action]");
+  if (!button) return;
+  const key = Number(button.closest("[data-cart-dish]").dataset.cartDish);
+  const entry = state.cart.get(key);
+  if (!entry) return;
+  if (button.dataset.cartAction === "remove") state.cart.delete(key);
+  else if (button.dataset.cartAction === "plus") entry.qty++;
+  else if (entry.qty > 1) entry.qty--;
+  refreshCartUI();
+  $("#cartUpdateStatus").textContent = button.dataset.cartAction === "remove" ? `已移除${entry.dish.dishName}` : `${entry.dish.dishName}已调整为${entry.qty}份`;
+});
 
 $("#checkoutBtn").addEventListener("click", async () => {
   if (state.cart.size === 0) {
@@ -656,6 +751,7 @@ $("#checkoutBtn").addEventListener("click", async () => {
 
   const btn = $("#checkoutBtn");
   btn.disabled = true;
+  $("#openCart").disabled = true;
   btn.textContent = "下单中…";
   // POST /orders 公开：游客不带 userId（后端支持游客单），登录用户带上 userId
   const orderBody = { orderItems };
@@ -673,6 +769,7 @@ $("#checkoutBtn").addEventListener("click", async () => {
     showOrderSuccess(data);
   } catch (e) { /* msg 已提示 */ } finally {
     btn.disabled = false;
+    $("#openCart").disabled = false;
     btn.textContent = "去下单";
   }
 });

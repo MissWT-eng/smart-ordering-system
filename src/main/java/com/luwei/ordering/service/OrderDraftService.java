@@ -1,6 +1,7 @@
 package com.luwei.ordering.service;
 
 import com.luwei.ordering.dto.request.DraftOrderRequest;
+import com.luwei.ordering.dto.request.ReviseDraftRequest;
 import com.luwei.ordering.dto.response.OrderDraftSnapshot;
 import com.luwei.ordering.dto.response.OrderListItemDTO;
 
@@ -14,4 +15,6 @@ public interface OrderDraftService {
             String ownerKey);
 
     OrderListItemDTO confirmDraft(String draftId, String ownerKey);
+
+    OrderDraftSnapshot reviseDraft(String draftId, ReviseDraftRequest req, String ownerKey);
 }

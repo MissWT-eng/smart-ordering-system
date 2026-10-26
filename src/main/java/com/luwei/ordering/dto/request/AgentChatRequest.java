@@ -12,6 +12,9 @@ public class AgentChatRequest {
     //对话Id，同一个用户可以有多段对话(可选)
     private String conversationId;
 
+    //当前对话中的草稿订单号
+    private String currentDraftId;
+
     @NotBlank
     @Size(max = 2000, message = "消息不能超过2000字符")
     private String message;

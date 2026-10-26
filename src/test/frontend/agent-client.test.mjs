@@ -68,15 +68,27 @@ test("malformed JSON and text before metadata fail closed", async () => {
 test("POST sends trusted auth header, same-origin cookies and explicit confirmation", async () => {
   let request;
   const controller = new AbortController();
-  await streamAgentChat({ message: "确认", token: "fixture-only-token", conversationId: "chat-a", confirmedDraftId: "draft-a", signal: controller.signal,
+  await streamAgentChat({ message: "确认", token: "fixture-only-token", conversationId: "chat-a", currentDraftId: "draft-a", confirmedDraftId: "draft-a", signal: controller.signal,
     fetchImpl: async (url, options) => { request = { url, options }; return response(meta + done); } });
   assert.equal(request.url, "/agent/chat/stream");
   assert.equal(request.options.method, "POST");
   assert.equal(request.options.credentials, "same-origin");
   assert.equal(request.options.headers["X-User-Token"], "fixture-only-token");
   assert.equal(request.options.signal, controller.signal);
-  assert.deepEqual(JSON.parse(request.options.body), { message: "确认", conversationId: "chat-a", confirmedDraftId: "draft-a" });
+  assert.deepEqual(JSON.parse(request.options.body), { message: "确认", conversationId: "chat-a", currentDraftId: "draft-a", confirmedDraftId: "draft-a" });
 });
+test("current draft reference does not grant order confirmation", async () => {
+  await streamAgentChat({ message: "现在这份多少钱", conversationId: "chat-a", currentDraftId: "draft-revised",
+    fetchImpl: async (_url, options) => {
+      const body = JSON.parse(options.body);
+      assert.deepEqual(body, { message: "现在这份多少钱", conversationId: "chat-a", currentDraftId: "draft-revised" });
+      assert.equal(body.confirmedDraftId, undefined);
+      assert.equal(body.ownerKey, undefined);
+      assert.equal(body.draft, undefined);
+      return response(meta + done);
+    } });
+});
+
 test("ordinary guest chat omits identity and confirmation fields", async () => {
   await streamAgentChat({ message: "看看菜单", fetchImpl: async (_url, options) => {
     assert.deepEqual(JSON.parse(options.body), { message: "看看菜单" });

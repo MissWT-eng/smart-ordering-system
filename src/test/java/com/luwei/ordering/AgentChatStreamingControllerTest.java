@@ -7,8 +7,12 @@ import com.luwei.ordering.common.exception.ErrorCode;
 import com.luwei.ordering.common.exception.GlobalExceptionHandler;
 import com.luwei.ordering.concurrent.AgentChatConcurrencyLimiter;
 import com.luwei.ordering.controller.AgentChatController;
+import com.luwei.ordering.dto.response.DraftOrderItemDTO;
+import com.luwei.ordering.dto.response.DraftOrderResponse;
+import com.luwei.ordering.dto.response.OrderDraftSnapshot;
 import com.luwei.ordering.dto.response.UserPreferenceDTO;
 import com.luwei.ordering.service.ConversationService;
+import com.luwei.ordering.service.OrderDraftService;
 import com.luwei.ordering.service.TokenService;
 import com.luwei.ordering.service.UserPreferenceService;
 import com.luwei.ordering.service.impl.ConversationMemoryServiceImpl;
@@ -35,6 +39,8 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +61,7 @@ class AgentChatStreamingControllerTest {
     private TokenService tokens;
     private UserPreferenceService profiles;
     private ConversationService conversations;
+    private OrderDraftService drafts;
     private ConversationMemoryServiceImpl memory;
     private AgentChatConcurrencyLimiter limiter;
     private MockMvc mvc;
@@ -68,7 +75,7 @@ class AgentChatStreamingControllerTest {
         var order = new com.luwei.ordering.dto.response.ConfirmOrderToolResult(
                 com.luwei.ordering.dto.response.ConfirmOrderToolResult.Status.CONFIRMATION_REQUIRED,
                 null, "尚未确认", "等待顾客");
-        when(agent.chat(anyString(), any(), anyString(), anyString())).thenReturn(
+        when(agent.chat(anyString(), any(), anyString(), anyString(), anyString())).thenReturn(
                 Result.<String>builder().content("仅说明结果")
                         .toolExecutions(List.of(tool("draftOrder", draft), tool("confirmOrder", order))).build());
         mvc.perform(post("/agent/chat").contentType(MediaType.APPLICATION_JSON)
@@ -97,6 +104,7 @@ class AgentChatStreamingControllerTest {
         when(request.getSession()).thenReturn(new MockHttpSession());
         tokens = mock(TokenService.class);
         profiles = mock(UserPreferenceService.class);
+        drafts = mock(OrderDraftService.class);
         conversations = mock(ConversationService.class);
         when(conversations.resolveConversationId(nullable(String.class), anyString())).thenAnswer(invocation -> {
             String id = invocation.getArgument(0);
@@ -110,15 +118,15 @@ class AgentChatStreamingControllerTest {
         ReflectionTestUtils.setField(memory, "maxCachedConversations", 100);
         memory.initCachedConversationSlots();
         limiter = new AgentChatConcurrencyLimiter();
-        when(agent.chatStream(anyString(), any(), anyString(), anyString())).thenAnswer(invocation -> {
+        when(agent.chatStream(anyString(), any(), anyString(), anyString(), anyString())).thenAnswer(invocation -> {
             ControlledTokenStream stream = new ControlledTokenStream();
-            streams.put(invocation.getArgument(3), stream);
+            streams.put(invocation.getArgument(4), stream);
             return stream;
         });
-        when(agent.chat(anyString(), any(), anyString(), anyString())).thenReturn(
+        when(agent.chat(anyString(), any(), anyString(), anyString(), anyString())).thenReturn(
                 Result.<String>builder().content("sync reply").toolExecutions(List.of()).build());
         AgentChatController controller = new AgentChatController(agent, request, tokens, conversations,
-                memory, profiles, json, limiter);
+                memory, profiles, json, drafts, limiter);
         mvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
@@ -148,6 +156,7 @@ class AgentChatStreamingControllerTest {
         assertEquals("完整回复", done.path("reply").asText());
         assertEquals("SUCCESS", done.path("proposalToolResult").path("status").asText());
         assertEquals("mild", done.path("proposalToolResult").path("proposal").path("spicyLevel").asText());
+        verifyNoInteractions(drafts);
         verify(memory, times(1)).endUse("stream-a");
         capacity(4);
     }
@@ -176,13 +185,17 @@ class AgentChatStreamingControllerTest {
         profile.setSpicyLevel(SpicyLevel.NONE);
         profile.setPreferenceText("喜欢菌菇");
         when(profiles.queryUserPreference(7L)).thenReturn(profile);
+        when(drafts.getDraft("draft-verified", "user:7"))
+                .thenReturn(currentDraft("draft-verified", "user:7"));
         MvcResult result = mvc.perform(post("/agent/chat/stream").contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.TEXT_EVENT_STREAM).content(json.writeValueAsString(Map.of(
-                                "message", "confirm", "conversationId", "trusted", "confirmedDraftId", "draft-verified"))))
+                                "message", "confirm", "conversationId", "trusted", "confirmedDraftId", "draft-verified",
+                                "currentDraftId", "draft-verified"))))
                 .andReturn();
         ArgumentCaptor<InvocationParameters> parameters = ArgumentCaptor.forClass(InvocationParameters.class);
         ArgumentCaptor<String> profileJson = ArgumentCaptor.forClass(String.class);
-        verify(agent).chatStream(eq("confirm"), parameters.capture(), profileJson.capture(), eq("trusted"));
+        ArgumentCaptor<String> draftJson = ArgumentCaptor.forClass(String.class);
+        verify(agent).chatStream(eq("confirm"), parameters.capture(), profileJson.capture(), draftJson.capture(), eq("trusted"));
         assertEquals("user:7", parameters.getValue().get("ownerKey"));
         assertEquals(Long.valueOf(7), parameters.getValue().get("userId"));
         assertSame(profile, parameters.getValue().get("userPreference"));
@@ -191,8 +204,74 @@ class AgentChatStreamingControllerTest {
         assertEquals(2, context.size());
         assertEquals("none", context.path("spicyLevel").asText());
         assertEquals("喜欢菌菇", context.path("preferenceText").asText());
+        assertCurrentDraftContext(draftJson.getValue(), "draft-verified");
         streams.get("trusted").complete.accept(response("ok"));
         mvc.perform(asyncDispatch(result)).andExpect(status().isOk());
+        capacity(4);
+    }
+
+    @Test
+    void passesCurrentDraftIntoSynchronousAgentWithoutGrantingConfirmation() throws Exception {
+        String ownerKey = "guest" + request.getSession().getId();
+        when(drafts.getDraft("draft-current", ownerKey))
+                .thenReturn(currentDraft("draft-current", ownerKey));
+        mvc.perform(post("/agent/chat").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("message", "当前报价多少钱",
+                                "conversationId", "current-sync", "currentDraftId", "draft-current"))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.code").value(0));
+        ArgumentCaptor<InvocationParameters> parameters = ArgumentCaptor.forClass(InvocationParameters.class);
+        ArgumentCaptor<String> draftJson = ArgumentCaptor.forClass(String.class);
+        verify(agent).chat(eq("当前报价多少钱"), parameters.capture(), anyString(), draftJson.capture(), eq("current-sync"));
+        assertEquals(ownerKey, parameters.getValue().get("ownerKey"));
+        assertNull(parameters.getValue().get("confirmedDraftId"));
+        assertCurrentDraftContext(draftJson.getValue(), "draft-current");
+        capacity(4);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"DRAFT_NOT_FOUND_OR_EXPIRED", "DRAFT_REPLACED"})
+    void unavailableDraftsRemainChatableInBothEntryPoints(String name) throws Exception {
+        when(drafts.getDraft(eq("unavailable-draft"), anyString()))
+                .thenThrow(new BusinessException(ErrorCode.valueOf(name)));
+        for (String path : List.of("/agent/chat", "/agent/chat/stream")) {
+            boolean streaming = path.endsWith("/stream");
+            String id = streaming ? "unavailable-stream" : "unavailable-sync";
+            MvcResult result = mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+                            .content(json.writeValueAsString(Map.of("message", "报价还能用吗",
+                                    "conversationId", id, "currentDraftId", "unavailable-draft"))))
+                    .andExpect(status().isOk()).andReturn();
+            ArgumentCaptor<String> draftJson = ArgumentCaptor.forClass(String.class);
+            if (streaming) {
+                verify(agent).chatStream(eq("报价还能用吗"), any(), anyString(), draftJson.capture(), eq(id));
+                streams.get(id).complete.accept(response("报价已失效"));
+                mvc.perform(asyncDispatch(result)).andExpect(status().isOk());
+            } else {
+                verify(agent).chat(eq("报价还能用吗"), any(), anyString(), draftJson.capture(), eq(id));
+            }
+            JsonNode context = json.readTree(draftJson.getValue());
+            assertEquals("UNAVAILABLE", context.path("status").asText());
+            assertFalse(context.path("message").asText().isBlank());
+            assertFalse(context.has("draft"));
+            assertFalse(context.has("ownerKey"));
+            capacity(4);
+        }
+    }
+
+    @Test
+    void rejectsForeignDraftBeforeConversationAdmissionInBothEntryPoints() throws Exception {
+        when(drafts.getDraft(eq("foreign-draft"), anyString()))
+                .thenThrow(new BusinessException(ErrorCode.FORBIDDEN));
+        for (String path : List.of("/agent/chat", "/agent/chat/stream")) {
+            mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+                            .content(json.writeValueAsString(Map.of("message", "当前报价多少钱",
+                                    "currentDraftId", "foreign-draft"))))
+                    .andExpect(status().isForbidden())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.code").value(403));
+        }
+        verifyNoInteractions(agent, conversations);
+        verify(memory, never()).beginUse(anyString());
+        verify(memory, never()).endUse(anyString());
         capacity(4);
     }
 
@@ -207,7 +286,7 @@ class AgentChatStreamingControllerTest {
                     .andExpect(jsonPath("$.code").value(400));
         }
         verifyNoInteractions(conversations);
-        verify(agent, never()).chatStream(anyString(), any(), anyString(), anyString());
+        verify(agent, never()).chatStream(anyString(), any(), anyString(), anyString(), anyString());
         capacity(4);
     }
 
@@ -249,7 +328,7 @@ class AgentChatStreamingControllerTest {
             capacity(4);
         }
         verify(memory, never()).endUse(anyString());
-        verify(agent, never()).chatStream(anyString(), any(), anyString(), anyString());
+        verify(agent, never()).chatStream(anyString(), any(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -298,7 +377,7 @@ class AgentChatStreamingControllerTest {
 
     @Test
     void agentInitializationFailureStillReturnsAnErrorEventAndReleases() throws Exception {
-        when(agent.chatStream(anyString(), any(), anyString(), anyString()))
+        when(agent.chatStream(anyString(), any(), anyString(), anyString(), anyString()))
                 .thenThrow(new IllegalStateException("controlled initialization failure"));
         MvcResult result = open("start-error", "hello");
         mvc.perform(asyncDispatch(result)).andExpect(status().isOk());
@@ -341,6 +420,26 @@ class AgentChatStreamingControllerTest {
         assertEquals(List.of("meta"), names(running));
         verify(memory, times(1)).endUse("disconnected");
         capacity(4);
+    }
+
+    private OrderDraftSnapshot currentDraft(String id, String ownerKey) {
+        LocalDateTime now = LocalDateTime.now();
+        DraftOrderResponse quote = new DraftOrderResponse(
+                List.of(new DraftOrderItemDTO(20L, "热豆浆", new BigDecimal("8.00"), 2, new BigDecimal("16.00"))),
+                new BigDecimal("16.00"), new BigDecimal("20.00"), false);
+        return new OrderDraftSnapshot(id, ownerKey, quote, null, now, now.plusMinutes(15));
+    }
+
+    private void assertCurrentDraftContext(String value, String id) {
+        JsonNode context = json.readTree(value);
+        assertEquals(3, context.size());
+        assertEquals(id, context.path("draftId").asText());
+        assertFalse(context.path("expireAt").asText().isBlank());
+        assertEquals(2, context.path("draft").path("items").get(0).path("quantity").asInt());
+        assertEquals(0, context.path("draft").path("totalAmount").decimalValue().compareTo(new BigDecimal("16.00")));
+        assertFalse(context.has("ownerKey"));
+        assertFalse(context.has("replacedByDraftId"));
+        assertFalse(context.has("createdAt"));
     }
 
     private MvcResult open(String id, String message) throws Exception {

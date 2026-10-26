@@ -100,7 +100,7 @@ public class ConversationServiceImpl implements ConversationService {
     //-1 抛出FORBIDDEN
     //null或其他值 抛出系统异常
     private void validateAndRefreshConversation(
-            String conversationId, String ownerKey) {
+        String conversationId, String ownerKey) {
         // 原子校验归属并续期
         String redisKey = "chat:conversation:" + conversationId;
 
@@ -130,6 +130,6 @@ public class ConversationServiceImpl implements ConversationService {
         if (result != 1L) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR);
         }
-    }
 
+    }
 }
