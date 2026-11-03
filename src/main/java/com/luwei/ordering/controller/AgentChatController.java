@@ -28,10 +28,6 @@ import tools.jackson.databind.ObjectMapper;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static com.luwei.ordering.common.exception.ErrorCode.DRAFT_NOT_FOUND_OR_EXPIRED;
-import static com.luwei.ordering.common.exception.ErrorCode.DRAFT_REPLACED;
-
 @RestController
 @RequestMapping("/agent")
 @RequiredArgsConstructor
@@ -85,6 +81,7 @@ public class AgentChatController {
 
         if (userId != null) {
             parameters.put("userId", userId);
+            parameters.put("userToken", token);
         }
 
         if (userPreference != null) {
@@ -222,6 +219,7 @@ public class AgentChatController {
 
         if (userId != null) {
             parameters.put("userId", userId);
+            parameters.put("userToken", token);
         }
 
         if (userPreference != null) {

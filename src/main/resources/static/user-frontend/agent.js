@@ -1,7 +1,10 @@
-import { streamAgentChat } from "./sse-client.mjs";
+import { streamAgentChat } from "./sse-client.mjs?v=20261027-2";
 import { escapeHtml as esc, formatMessage } from "./message-format.mjs";
 import { canConfirmDraft, confirmedDraftRequest, candidatePayload } from "./agent-policy.mjs";
 import { requestDraftRevision } from "./draft-revision.mjs";
+import { lookupDraftOrder, hasReliableOrderReceipt, shouldOfferOrderLookup, classifyConfirmationOutcome } from "./order-lookup.mjs?v=20261102-1";
+import { createSpeechInput } from "./speech-input.mjs?v=20261103-2";
+import { createSpeechPlayback } from "./speech-playback.mjs?v=20261103-1";
 
 const ui = window.OrderingUI;
 const $ = (selector) => document.querySelector(selector);
@@ -13,9 +16,12 @@ const jumpButton = $("#jumpToLatest");
 const starterButtons = [...document.querySelectorAll("[data-chat-prompt]")];
 const chatView = { followLatest: true, hasUnread: false };
 let selectedStarter = null;
+let speechInput = null;
+let speechPlayback = null;
 const spicyNames = { none: "不辣", mild: "微辣", medium: "中辣", high: "很辣" };
 const chat = { conversationId: null, currentDraftId: null, busy: false, saving: false, epoch: 0, request: null,
-  draftCards: [], proposalCards: [], confirming: null, revision: null, identity: identity(), profileLoad: 0 };
+  draftCards: [], proposalCards: [], confirming: null, revision: null, recoveries: [], ownerEpoch: 0,
+  identity: identity(), profileLoad: 0 };
 
 function identity() { const user = ui.getUser(); return user?.token ? `user:${user.userId}` : "guest"; }
 function money(value) { return value !== null && value !== undefined && Number.isFinite(Number(value)) ? `¥${Number(value).toFixed(2)}` : "—"; }
@@ -83,13 +89,14 @@ function notice(message, newChat = false) {
   }
 }
 function updateControls() {
-  const busy = chat.busy || chat.saving;
+  const working = chat.busy || chat.saving;
+  const busy = working || recoveryNeedsLogin() || !!speechInput?.isBusy();
   if (input.getClientRects().length) {
     input.style.height = "auto";
     input.style.height = `${Math.min(input.scrollHeight, 150)}px`;
   }
   $("#sendChat").disabled = busy || !input.value.trim();
-  $("#newConversation").disabled = busy;
+  $("#newConversation").disabled = working;
   $("#clearTaste").disabled = busy;
   $("#stopChat").classList.toggle("hidden", !chat.busy);
   panel.classList.toggle("is-streaming", chat.busy);
@@ -102,8 +109,12 @@ function updateControls() {
     entry.button.disabled = busy || entry.finished || entry.superseded || entry.epoch !== chat.epoch;
     entry.dismiss.disabled = busy || entry.finished || entry.superseded || entry.epoch !== chat.epoch;
   });
+  speechInput?.syncControls();
+  speechPlayback?.syncControls();
 }
-function resetConversation(message = "") {
+function resetConversation(message = "", forgetOrderResults = false) {
+  speechPlayback?.stop({ clearCache: true, forgetEntries: true });
+  speechInput?.cancel();
   chat.epoch++;
   if (chat.request) { chat.request.reason = "identity"; chat.request.controller.abort(); }
   if (chat.revision) chat.revision.controller.abort();
@@ -116,10 +127,21 @@ function resetConversation(message = "") {
   chat.draftCards = [];
   chat.proposalCards = [];
   chat.confirming = null;
+  if (forgetOrderResults) {
+    chat.ownerEpoch++;
+    chat.recoveries.forEach((entry) => entry.controller?.abort());
+    chat.recoveries = [];
+  } else chat.recoveries = chat.recoveries.filter((entry) => entry.pending);
   dialog.close();
   $("#clearTasteDialog").close();
   timeline.querySelectorAll(".chat-message").forEach((element) => element.remove());
   $("#chatWelcome").classList.remove("hidden");
+  chat.recoveries.forEach((entry) => {
+    const assistant = addMessage("assistant", "这笔订单的结果仍待核实。");
+    entry.article = assistant.article;
+    entry.sourceState = assistant.state;
+    entry.article.append(entry.panel);
+  });
   $("#agentStatus").textContent = "点餐助手已就绪";
   input.value = "";
   notice(message);
@@ -145,7 +167,7 @@ function addMessage(role, value = "") {
   timeline.append(article);
   return { article, content, state };
 }
-function addReplyActions(assistant, reply) {
+function addReplyActions(assistant, reply, data) {
   const actions = textElement("div", "", "message-tools");
   const copy = textElement("button", "", "copy-reply");
   copy.type = "button";
@@ -178,18 +200,171 @@ function addReplyActions(assistant, reply) {
     }
   });
   actions.append(assistant.state, copy);
+  speechPlayback?.attach(actions, data || { reply });
   assistant.article.append(actions);
+}
+
+function recoveryIsCurrent(entry) {
+  return entry.pending && entry.ownerEpoch === chat.ownerEpoch && entry.identity === identity()
+    && chat.recoveries.includes(entry);
+}
+function recoveryNeedsLogin() {
+  return chat.recoveries.some((entry) => recoveryIsCurrent(entry) && entry.requiresLogin);
+}
+function requireRecoveryLogin(token) {
+  chat.recoveries.filter(recoveryIsCurrent).forEach((entry) => {
+    if (entry.identity === "guest") return;
+    entry.requiresLogin = true;
+    entry.expiredToken = token;
+    entry.feedback.textContent = "登录凭证已过期，订单结果仍待核实。请重新登录原账号后继续核实。";
+    entry.feedback.classList.add("is-error");
+    if (!entry.checking) entry.button.textContent = "重新登录后核实订单";
+  });
+  updateControls();
+  loadProfile();
+}
+function preserveRecoveryOnAuthExpired(user) {
+  const active = chat.request;
+  if (active?.confirmedDraftId && active.identity === identity() && active.ownerEpoch === chat.ownerEpoch
+      && active.outcome === "unknown") {
+    offerOrderRecovery(active, active.assistant);
+    active.reason = "auth";
+    active.controller.abort();
+  }
+  const entry = chat.recoveries.find(recoveryIsCurrent);
+  if (!entry || entry.identity === "guest") return false;
+  requireRecoveryLogin(user.token);
+  requestRecoveryLogin(entry);
+  return true;
+}
+function requestRecoveryLogin(entry) {
+  if (!recoveryIsCurrent(entry)) return;
+  entry.resumeAfterLogin = true;
+  entry.feedback.textContent = "请重新登录原账号，登录成功后仅继续核实本次提交，不会再次下单。";
+  if (diningDialog.open) diningDialog.close();
+  ui.openLogin();
+  $("#loginPhone").focus();
+}
+function resumeRecoveriesAfterLogin() {
+  const token = ui.getUser()?.token;
+  chat.recoveries.forEach((entry) => {
+    if (!recoveryIsCurrent(entry) || !entry.requiresLogin || !token || token === entry.expiredToken) return;
+    entry.requiresLogin = false;
+    entry.expiredToken = null;
+    entry.button.textContent = "再次核实订单结果";
+    entry.feedback.textContent = "登录凭证已更新，可以继续核实本次提交。";
+    entry.feedback.classList.remove("is-error");
+    if (entry.resumeAfterLogin) {
+      entry.resumeAfterLogin = false;
+      recoverOrderOutcome(entry);
+    }
+  });
+  updateControls();
+}
+function offerOrderRecovery(request, assistant) {
+  let entry = chat.recoveries.find((value) => value.pending && value.confirmedDraftId === request.confirmedDraftId
+    && value.ownerEpoch === request.ownerEpoch);
+  if (!entry) {
+    const panel = document.createElement("section");
+    panel.className = "order-recovery";
+    panel.setAttribute("aria-label", "待核实的订单结果");
+    const heading = textElement("div", "", "recovery-heading");
+    const title = textElement("strong", "订单结果待核实");
+    heading.append(icon("orders"), title);
+    const feedback = textElement("p", "仅查询这次提交的结果，不会再次下单。", "recovery-feedback");
+    feedback.setAttribute("role", "status");
+    const details = document.createElement("details");
+    details.className = "recovery-details";
+    details.append(textElement("summary", "本次提交的草稿编号"), textElement("p", request.confirmedDraftId));
+    const button = textElement("button", "核实订单结果", "btn-ghost order-lookup-button");
+    button.type = "button";
+    panel.append(heading, feedback, details, button);
+    entry = { identity: request.identity, ownerEpoch: request.ownerEpoch, pending: true, checking: false,
+      controller: null, panel, button, feedback, title, article: assistant.article, sourceState: assistant.state };
+    // The submission snapshot never follows chat.currentDraftId or subsequent quotes.
+    Object.defineProperty(entry, "confirmedDraftId", { value: request.confirmedDraftId, enumerable: true });
+    chat.recoveries.push(entry);
+    button.addEventListener("click", () => recoverOrderOutcome(entry));
+  }
+  entry.article = assistant.article;
+  entry.sourceState = assistant.state;
+  entry.article.append(entry.panel);
+}
+async function recoverOrderOutcome(entry) {
+  if (!recoveryIsCurrent(entry) || entry.checking) return;
+  if (entry.requiresLogin) { requestRecoveryLogin(entry); return; }
+  const request = { controller: new AbortController(), timedOut: false, token: ui.getUser()?.token };
+  entry.controller = request.controller;
+  entry.checking = true;
+  entry.button.disabled = true;
+  entry.button.textContent = "正在核实……";
+  entry.feedback.textContent = "正在查询这次提交的订单结果……";
+  entry.feedback.classList.remove("is-error");
+  entry.panel.setAttribute("aria-busy", "true");
+  const timeout = setTimeout(() => { request.timedOut = true; request.controller.abort(); }, 20_000);
+  try {
+    const result = await lookupDraftOrder({ baseUrl: ui.getApiBase(), confirmedDraftId: entry.confirmedDraftId,
+      token: request.token, signal: request.controller.signal });
+    if (!recoveryIsCurrent(entry) || entry.controller !== request.controller) return;
+    if (result.status === "found") {
+      renderOrder({ status: "SUCCESS", order: result.order }, entry.article, entry.confirmedDraftId);
+      speechPlayback?.updateForArticle(entry.article, { orderToolResult: { status: "SUCCESS", order: result.order } });
+      entry.pending = false;
+      entry.title.textContent = "订单结果已核实";
+      entry.feedback.textContent = "已查询到订单，以下为真实回执。";
+      entry.sourceState.textContent = "订单结果已核实";
+      entry.sourceState.classList.remove("is-error");
+      entry.panel.classList.add("is-resolved");
+      entry.button.remove();
+      if (!chat.recoveries.some((value) => value.pending)) {
+        if (!chat.busy) $("#agentStatus").textContent = "订单结果已核实，可以继续聊";
+        if ($("#chatNotice").textContent === "请先核实这次提交的订单结果，不要重复确认下单。") notice("");
+      }
+    } else {
+      entry.feedback.textContent = "暂未查询到，请稍后再次核实。提交可能仍在处理中。";
+    }
+    updateControls();
+    scrollLatest(false, true);
+  } catch (error) {
+    if (!recoveryIsCurrent(entry) || entry.controller !== request.controller) return;
+    if ((error.status === 401 || error.code === 401) && entry.identity !== "guest") {
+      if (ui.getUser()?.token === request.token) requireRecoveryLogin(request.token);
+      else entry.feedback.textContent = "登录凭证已更新，本次查询未完成，请再次核实订单结果。";
+    } else {
+      entry.feedback.textContent = request.timedOut ? "查询超时，核实未完成，请稍后再次核实。"
+        : `查询未完成：${error.message || "连接中断"}。订单结果仍待核实，请稍后再试。`;
+    }
+    entry.feedback.classList.add("is-error");
+  } finally {
+    clearTimeout(timeout);
+    if (entry.controller === request.controller) {
+      entry.controller = null;
+      entry.checking = false;
+      entry.panel.setAttribute("aria-busy", "false");
+      if (recoveryIsCurrent(entry)) {
+        entry.button.disabled = false;
+        entry.button.textContent = entry.requiresLogin ? "重新登录后核实订单" : "再次核实订单结果";
+      }
+    }
+  }
 }
 
 async function sendMessage(message, confirmedDraftId = null) {
   message = message.trim();
+  if (speechInput?.isBusy()) { ui.toast("请先停止或取消语音识别，再发送消息"); return; }
   if (chat.busy || chat.saving || !message) return;
+  const loginRequired = chat.recoveries.find((entry) => recoveryIsCurrent(entry) && entry.requiresLogin);
+  if (loginRequired) { requestRecoveryLogin(loginRequired); return; }
   if (message.length > 2000) { ui.toast("请把消息控制在2000字以内"); return; }
   const epoch = chat.epoch;
-  const request = { controller: new AbortController(), reason: null };
   const user = ui.getUser();
+  const request = { controller: new AbortController(), reason: null, confirmedDraftId,
+    identity: identity(), ownerEpoch: chat.ownerEpoch, outcome: "unknown", receipt: null };
+  if (confirmedDraftId) chat.draftCards.filter((entry) => entry.result.draftId === confirmedDraftId)
+    .forEach((entry) => { entry.confirmationPending = true; });
   addMessage("user", message);
   const assistant = addMessage("assistant");
+  request.assistant = assistant;
   assistant.article.classList.add("is-pending");
   chat.busy = true;
   chat.request = request;
@@ -217,31 +392,57 @@ async function sendMessage(message, confirmedDraftId = null) {
       },
       onDone(data) {
         if (epoch !== chat.epoch) return;
+        request.outcome = classifyConfirmationOutcome(data.orderToolResult);
+        request.receipt = request.outcome === "found" ? data.orderToolResult.order : null;
         assistant.content.style.whiteSpace = "";
         assistant.content.innerHTML = formatMessage(data.reply);
         assistant.state.textContent = "回复完成";
-        renderToolResults(data, assistant.article);
-        addReplyActions(assistant, data.reply);
+        renderToolResults(data, assistant.article, request.confirmedDraftId);
+        const orderResultPending = shouldOfferOrderLookup({ confirmedDraftId: request.confirmedDraftId,
+          receipt: request.receipt, rejected: request.outcome === "rejected" });
+        addReplyActions(assistant, data.reply, { ...data, orderResultPending });
         $("#agentStatus").textContent = "同一段对话，可以继续聊";
+        if (orderResultPending) {
+          assistant.state.textContent = "回复已结束，但未收到可靠订单回执，订单结果仍待核实。";
+          assistant.state.classList.add("is-error");
+          offerOrderRecovery(request, assistant);
+          $("#agentStatus").textContent = "订单结果仍待核实";
+          notice("请先核实这次提交的订单结果，不要重复确认下单。");
+        }
         scrollLatest(false, true);
       },
     });
   } catch (error) {
     if (epoch !== chat.epoch) return;
+    if (request.receipt) {
+      if (!assistant.article.querySelector(".is-receipt")) renderOrder({ status: "SUCCESS", order: request.receipt }, assistant.article, request.confirmedDraftId);
+      assistant.state.textContent = "已收到真实订单回执";
+      $("#agentStatus").textContent = "订单回执已收到，可以继续聊";
+      return;
+    }
+    if (request.outcome === "rejected") {
+      assistant.state.textContent = "本次下单已明确拒绝，请根据说明调整后再操作。";
+      $("#agentStatus").textContent = "本次下单未通过";
+      return;
+    }
     const stopped = request.reason === "user";
-    const preflightRejected = !streamStarted && error.status >= 400;
+    const preflightRejected = !streamStarted && error.phase === "preflight" && error.rejected === true;
+    if (preflightRejected) request.outcome = "rejected";
+    const needsLookup = shouldOfferOrderLookup({ confirmedDraftId: request.confirmedDraftId,
+      receipt: request.receipt, rejected: preflightRejected });
     const description = preflightRejected ? `${error.message}。本次请求未开始处理。`
       : stopped ? "已停止接收。后台操作可能仍在执行，请勿重复提交订单。"
       : request.reason === "timeout" ? "等待回复超时。操作结果尚未确认，请勿重复提交订单。"
       : `${error.message || "连接中断"}。本次回复未完成，操作结果需要核实。`;
     if (!assistant.content.textContent) assistant.content.textContent = preflightRejected ? "这次请求没有开始处理。" : stopped ? "已停止接收这次回复。" : "这次没能收到完整回复。";
-    assistant.state.textContent = description;
+    assistant.state.textContent = needsLookup ? "回复已中断，订单是否创建尚待核实。" : description;
     assistant.state.classList.add("is-error");
     $("#agentStatus").textContent = preflightRejected ? "暂时无法开始对话" : stopped ? "接收已停止" : "本次回复未完成";
+    if (needsLookup) offerOrderRecovery(request, assistant);
     if (error.status === 401 && ui.getUser()?.token === user?.token) ui.handleAuthExpired();
     else if (error.status === 403 || error.status === 404 || (error.status === 409 && /失效/.test(error.message))) {
       notice(error.message, true);
-    } else notice(description);
+    } else notice(needsLookup ? "请先核实这次提交的订单结果，不要重复确认下单。" : description);
     scrollLatest(false, true);
   } finally {
     clearTimeout(timeout);
@@ -249,6 +450,8 @@ async function sendMessage(message, confirmedDraftId = null) {
       assistant.article.classList.remove("is-pending");
       chat.busy = false;
       chat.request = null;
+      if (request.confirmedDraftId) chat.draftCards.filter((entry) => entry.result.draftId === request.confirmedDraftId)
+        .forEach((entry) => { entry.confirmationPending = false; });
       updateControls();
       scrollLatest();
     }
@@ -272,13 +475,16 @@ function card(title, kicker, badge, warning = false) {
   element.innerHTML = `<div class="tool-card-header"><div class="tool-heading"><span class="tool-symbol"><svg class="icon" aria-hidden="true"><use href="#i-${symbol}"/></svg></span><div><p class="card-kicker">${esc(kicker)}</p><h3>${esc(title)}</h3></div></div><span class="card-badge${warning ? " warning" : ""}">${esc(badge)}</span></div>`;
   return element;
 }
-function renderToolResults(data, article) {
+function renderToolResults(data, article, confirmedDraftId = null) {
   if (data.draftToolResult) renderDraft(data.draftToolResult, article);
-  if (data.orderToolResult) renderOrder(data.orderToolResult, article);
+  if (data.orderToolResult && (!confirmedDraftId || classifyConfirmationOutcome(data.orderToolResult) !== "unknown"))
+    renderOrder(data.orderToolResult, article, confirmedDraftId);
   if (data.proposalToolResult) renderProposal(data.proposalToolResult, article);
 }
 function draftIsCurrent(entry) {
-  return entry.epoch === chat.epoch && !entry.superseded && !entry.submitted && !entry.unavailable && !entry.uncertain;
+  return entry.epoch === chat.epoch && !entry.superseded && !entry.submitted && !entry.unavailable && !entry.uncertain
+    && !recoveryNeedsLogin() && !entry.confirmationPending
+    && !chat.recoveries.some((pending) => pending.pending && pending.confirmedDraftId === entry.result.draftId);
 }
 function draftCanBeEdited(entry) {
   return draftIsCurrent(entry) && ["SUCCESS", "BUDGET_EXCEEDED"].includes(entry.result.status)
@@ -300,6 +506,8 @@ function updateDraftControls(entry, busy = chat.busy || chat.saving) {
   let label = "核对并确认下单";
   if (entry.submitted) label = "已返回正式订单，请查看回执";
   else if (entry.superseded) label = "已被新报价替换";
+  else if (entry.confirmationPending) label = "正在确认订单……";
+  else if (chat.recoveries.some((pending) => pending.pending && pending.confirmedDraftId === entry.result.draftId)) label = "订单结果待核实，请先核实";
   else if (entry.uncertain) label = "重新报价结果待核实";
   else if (entry.unavailable || expired) label = "报价已无法使用，请重新试算";
   else if (entry.dirty) label = "请先重新报价，再确认下单";
@@ -457,9 +665,9 @@ function renderDraft(result, article) {
   article.append(element);
   return element;
 }
-function renderOrder(result, article) {
+function renderOrder(result, article, confirmedDraftId = null) {
   const order = result.order;
-  const success = result.status === "SUCCESS" && order?.orderNum != null;
+  const success = result.status === "SUCCESS" && hasReliableOrderReceipt(order);
   const cancelled = success && order.orderStatus === "cancelled";
   const element = card(cancelled ? "这份订单已取消" : success ? "订单已提交" : "这次未能确认下单", "ORDER RECEIPT", cancelled ? "已取消" : success ? "正式订单" : "请核实后再操作", !success || cancelled);
   if (success) {
@@ -470,8 +678,9 @@ function renderOrder(result, article) {
     element.append(list, textElement("div", `订单金额 ${money(order.orderTotalMoney)}`, "quote-total"));
     try { ui.rememberAgentOrder(order); }
     catch { element.append(textElement("p", "订单已返回，但本机回执未能保存，请记下订单号。")); }
-    chat.draftCards.forEach((entry) => { entry.submitted = true; entry.button.textContent = "已返回正式订单，请查看回执"; });
-    chat.currentDraftId = null;
+    chat.draftCards.filter((entry) => !confirmedDraftId || entry.result.draftId === confirmedDraftId)
+      .forEach((entry) => { entry.submitted = true; entry.button.textContent = "已返回正式订单，请查看回执"; });
+    if (!confirmedDraftId || chat.currentDraftId === confirmedDraftId) chat.currentDraftId = null;
   } else element.append(textElement("p", result.message || "请根据助手说明核实结果，不要重复提交。"));
   article.append(element);
 }
@@ -531,6 +740,15 @@ async function loadProfile() {
   const box = $("#savedTaste");
   $("#clearTaste").classList.add("hidden");
   box.replaceChildren();
+  const loginRequired = chat.recoveries.find((entry) => recoveryIsCurrent(entry) && entry.requiresLogin);
+  if (loginRequired) {
+    box.append(textElement("p", "登录凭证已过期，请先登录原账号核实订单。"));
+    const login = textElement("button", "重新登录并核实订单", "taste-login");
+    login.type = "button";
+    login.addEventListener("click", () => requestRecoveryLogin(loginRequired));
+    box.append(login);
+    return;
+  }
   if (!user?.token) {
     box.append(textElement("p", "记住喜欢的味道，下次更懂你。"));
     const login = textElement("button", "登录，开启口味记忆", "taste-login");
@@ -555,7 +773,7 @@ async function loadProfile() {
 }
 
 $("#chatForm").addEventListener("submit", (event) => { event.preventDefault(); sendMessage(input.value); });
-input.addEventListener("input", updateControls);
+input.addEventListener("input", () => { speechInput?.inputChanged(); updateControls(); });
 input.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); sendMessage(input.value); }
 });
@@ -617,6 +835,7 @@ $("#refreshStarters").addEventListener("click", () => {
 });
 starterButtons.forEach((button) => button.addEventListener("click", () => {
   input.value = button.dataset.chatPrompt;
+  speechInput?.inputChanged();
   updateControls();
   input.focus();
 }));
@@ -652,18 +871,34 @@ $("#submitAgentOrder").addEventListener("click", () => {
     sendMessage(request.message, request.confirmedDraftId);
   } catch (error) { ui.toast(error.message); updateControls(); }
 });
+ui.setAuthExpiryHandler(preserveRecoveryOnAuthExpired);
+$("#navLoginBtn").addEventListener("click", (event) => {
+  const entry = chat.recoveries.find((value) => recoveryIsCurrent(value) && value.requiresLogin);
+  if (!entry) return;
+  event.stopImmediatePropagation();
+  requestRecoveryLogin(entry);
+}, { capture: true });
 window.addEventListener("ordering:auth-changed", () => {
+  speechPlayback?.stop({ clearCache: true });
+  speechInput?.cancel();
   const next = identity();
   if (next !== chat.identity) {
     chat.identity = next;
-    resetConversation("身份已切换，已开启新对话。");
-  }
+    resetConversation("身份已切换，已开启新对话。", true);
+  } else resumeRecoveriesAfterLogin();
   loadProfile();
 });
 window.addEventListener("ordering:page-changed", (event) => {
   if (diningDialog.open) diningDialog.close();
+  if (event.detail !== "agent") speechInput?.cancel();
+  if (event.detail !== "agent") speechPlayback?.stop();
   if (event.detail === "agent") { loadProfile(); updateControls(); scrollLatest(); }
 });
 setInterval(() => { if (chat.draftCards.length) updateControls(); }, 15_000);
+speechPlayback = createSpeechPlayback({ ui, isRecording: () => !!speechInput?.isBusy() });
+speechInput = createSpeechInput({ ui, input,
+  isBlocked: () => chat.busy || chat.saving || recoveryNeedsLogin(),
+  getConversationEpoch: () => chat.epoch, onChange: updateControls,
+  beforeRecording: () => speechPlayback?.stop() });
 loadProfile();
 updateControls();

@@ -9,7 +9,6 @@ import lombok.Data;
  */
 @Data
 public class FeedbackAddRequest {
-    @NotNull(message = "用户id不能为空")
     private Long userId;
 
     @NotNull(message = "菜品编号不能为空")

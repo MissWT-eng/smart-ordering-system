@@ -1,0 +1,246 @@
+-- 演示菜单增量数据，2026-11-02：新增60道，重复执行按菜名跳过，不更新现有菜品。
+-- 价格和做法为演示设定；只操作dish表，不写用户、订单或反馈。
+SET NAMES utf8mb4;
+START TRANSACTION;
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '葱姜焖鸡', 'available', '选用带骨鸡块，先煎出香气，再与大葱、姜片和少量酱油一同焖煮。鸡肉咸鲜，酱汁带有明显葱姜香，收汁后上桌，不添加辣椒。', 48.00, 'meat', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '葱姜焖鸡');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '黄焖鸡块', 'available', '鸡块与香菇、土豆一同焖制，加入少量青红辣椒提味，最后将汤汁略微收浓。口味酱香咸鲜，带轻微辣感，鸡肉和配菜都裹有酱汁。', 42.00, 'meat', 'mild'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '黄焖鸡块');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '干煸肥肠', 'available', '肥肠处理后先卤煮再煸炒，配芹菜、干辣椒和花椒炒出香气。口感外层略脆、内里有韧性，味道咸香麻辣，辣度为中辣，适合偏重口味的选择。', 56.00, 'meat', 'medium'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '干煸肥肠');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '孜然羊肉', 'available', '羊肉切片后与洋葱快速翻炒，加入孜然粒、孜然粉和少量辣椒粉。羊肉带有浓郁孜然香，洋葱保留些许脆口，整体咸香微辣，不带厚重汤汁。', 68.00, 'meat', 'mild'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '孜然羊肉');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '剁椒鱼头', 'available', '鱼头铺上剁椒、蒜末和姜丝后蒸制，出锅时淋少量热油激香。鱼肉细嫩，蒸汁融合剁椒的酸香与咸鲜，辣味较明显，按中辣口味制作。', 88.00, 'meat', 'medium'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '剁椒鱼头');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '椒盐排骨', 'available', '排骨腌味后炸至表面金黄，再与蒜末、葱段和少量干辣椒翻炒，撒入椒盐。入口酥香，骨边肉带嚼劲，味道咸鲜微辣，采用干香做法。', 58.00, 'meat', 'mild'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '椒盐排骨');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '酱香鸭块', 'available', '鸭肉切块后与姜片、葱段和甜面酱慢火焖煮，待入味后收汁。鸭肉保持有嚼劲的口感，酱香浓郁，咸味中带一点回甜，不放辣椒。', 46.00, 'meat', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '酱香鸭块');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '蒜香鸡翅', 'available', '鸡翅以蒜末和酱油腌制后煎熟，出锅前再裹一层蒜香酱汁。表皮略带焦香，鸡肉鲜嫩，整体为咸鲜中略带甜味的口味，不添加辣椒。', 38.00, 'meat', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '蒜香鸡翅');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '酸菜鱼', 'available', '鱼片搭配切碎酸菜、姜片和少量泡椒煮制，鱼骨先煮出汤底，再下鱼片。酸香突出，汤汁咸鲜，鱼片嫩滑，泡椒带来轻微辣感。', 72.00, 'meat', 'mild'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '酸菜鱼');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '豉汁蒸排骨', 'available', '小块排骨与豆豉、蒜末及少量酱油拌匀后蒸熟，保留蒸出的肉汁。豆豉香与蒜香融合，排骨口感嫩中有嚼劲，味道咸鲜，不放辣椒。', 45.00, 'meat', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '豉汁蒸排骨');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '香煎带鱼', 'available', '带鱼切段，以姜葱略作腌味后煎至两面金黄，再加入少量酱油调味。鱼肉细嫩，表面带有煎香，整体咸鲜不辣，食用时需留意鱼刺。', 52.00, 'meat', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '香煎带鱼');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '小炒黄牛肉', 'available', '牛肉薄片与小米椒、蒜片和香菜旺火快炒，少量酱油增添咸鲜。牛肉口感嫩滑，椒香与蒜香明显，小米椒用量较足，按特辣口味制作。', 66.00, 'meat', 'high'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '小炒黄牛肉');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '川味回锅肉', 'available', '五花肉先煮熟切片，再与蒜苗、豆瓣酱和辣椒一起回锅煸炒。肉片边缘略卷，口感肥瘦相间，豆瓣咸香突出，整体为中辣口味。', 48.00, 'meat', 'medium'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '川味回锅肉');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '金蒜蒸大虾', 'available', '大虾开背后铺上蒜蓉蒸制，再淋少量蒸鱼豉油，点缀炸香的蒜粒。虾肉紧实鲜甜，蒜香有层次，蒸汁咸鲜，不添加辣椒，保留虾壳上桌。', 98.00, 'meat', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '金蒜蒸大虾');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '砂锅牛腩', 'available', '牛腩块与白萝卜、姜片和香料慢炖，待肉软后收成较浓的酱汁，以砂锅盛装。牛肉酱香咸鲜，萝卜吸收肉汁，整体不辣，属于炖肉菜。', 128.00, 'meat', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '砂锅牛腩');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '香菇油菜', 'available', '香菇切片与小油菜一同清炒，加入蒜末和少量酱油提味，最后略微勾芡。油菜保留脆嫩口感，香菇柔软，味道咸鲜，以菌菇与蔬菜香为主，不放辣椒。', 24.00, 'vegetable', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '香菇油菜');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '番茄炒蛋', 'available', '鸡蛋先炒成柔软蛋块，再与番茄同炒，加入少量盐和糖平衡味道。番茄汁包裹蛋块，口感软嫩，味型酸甜中带咸鲜，不添加辣椒，含鸡蛋。', 22.00, 'vegetable', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '番茄炒蛋');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '清炒莴笋', 'available', '莴笋去皮切片，配蒜片旺火快炒，以盐调味后出锅。菜品保留莴笋自身的清香和脆口，味道较清淡，汤汁少，不放肉类配料或辣椒。', 20.00, 'vegetable', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '清炒莴笋');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '木耳炒山药', 'available', '山药切片与泡发木耳、胡萝卜片一起快炒，加入少量蒜末和盐调味。山药脆中带粉，木耳有弹性，味道清淡咸鲜，不添加肉类或辣椒。', 28.00, 'vegetable', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '木耳炒山药');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '干煸四季豆', 'available', '四季豆充分加热至熟后，与蒜末、干辣椒和少量芽菜干煸，炒去多余水分。豆角表皮略皱，口感软中带韧，味道咸香微辣，本菜不放肉末。', 26.00, 'vegetable', 'mild'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '干煸四季豆');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '酸辣白菜', 'available', '白菜切块后与干辣椒一起旺火翻炒，沿锅边加入米醋，以盐和少量糖调味。菜梗脆嫩，菜叶柔软，酸香与辣味较明显，按中辣口味制作。', 18.00, 'vegetable', 'medium'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '酸辣白菜');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '家常烧豆腐', 'available', '豆腐煎至表面金黄后，配青椒、木耳和少量豆瓣酱烧制，收汁后上桌。豆腐外层有韧性，内部柔软，味道咸鲜微辣，不加入肉末或肉片。', 26.00, 'vegetable', 'mild'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '家常烧豆腐');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '松仁玉米', 'available', '甜玉米粒与胡萝卜丁、青豆一同翻炒，出锅前加入炒香的松仁，以盐和少量糖调味。玉米清甜，松仁带坚果香，整体不辣，含松仁配料。', 30.00, 'vegetable', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '松仁玉米');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '虎皮青椒', 'available', '选用有明显辣味的青椒，煎至表面起皱，再加入蒜末、酱油和米醋焖炒。青椒柔软多汁，带煎香和酸咸味，整体为中辣，不放肉馅。', 24.00, 'vegetable', 'medium'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '虎皮青椒');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '清炒藕片', 'available', '莲藕切成薄片，配少量胡萝卜片和葱段快速翻炒，以盐调味。藕片爽脆，保留莲藕的清香，味道咸鲜而清淡，不添加肉类、辣椒或辣椒油。', 22.00, 'vegetable', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '清炒藕片');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '凉拌海带丝', 'available', '海带丝焯熟后放凉，与蒜末、米醋、酱油及少量辣椒油拌匀。口感脆韧，醋香明显，咸鲜中带轻微辣味，作为凉菜上桌，不添加肉类。', 16.00, 'vegetable', 'mild'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '凉拌海带丝');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '芹菜炒香干', 'available', '芹菜切段、香干切条，与蒜片一起快炒，加入少量酱油和盐调味。芹菜有脆口与清香，香干紧实有豆香，口味咸鲜，不放肉丝和辣椒。', 24.00, 'vegetable', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '芹菜炒香干');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '蒜蓉娃娃菜', 'available', '娃娃菜切瓣后蒸至熟软，铺上炒香的蒜蓉，再淋少量酱油调成的咸鲜汁。菜叶柔软，菜梗保留轻微脆感，蒜香明显，不添加辣椒或肉类。', 22.00, 'vegetable', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '蒜蓉娃娃菜');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '香辣土豆片', 'available', '土豆切片煎熟后，与小米椒、干辣椒和蒜末一同翻炒，撒少量孜然调味。土豆边缘略带焦香，口感软糯，辣味集中明显，按特辣口味制作。', 20.00, 'vegetable', 'high'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '香辣土豆片');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '葱油拌豆皮', 'available', '豆皮切丝焯熟后沥干，加入葱段熬出的葱油、酱油和少量米醋拌匀。豆皮柔韧，葱香突出，味道咸鲜略带酸味，作为不辣的凉菜上桌。', 18.00, 'vegetable', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '葱油拌豆皮');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '蒜苗炒杏鲍菇', 'available', '杏鲍菇切片后先煎出香气，再与蒜苗、蒜片及少量干辣椒翻炒。菌菇口感厚实，蒜苗清香明显，酱油调出咸鲜味，整体微辣，不放肉片。', 28.00, 'vegetable', 'mild'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '蒜苗炒杏鲍菇');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '清蒸南瓜', 'available', '南瓜去籽后切成厚块，隔水蒸至熟软，以原味上桌，不另加糖浆或酱汁。口感软糯，保留南瓜自身的清甜与香气，不放辣椒，也不搭配肉类。', 18.00, 'vegetable', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '清蒸南瓜');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '桂花乌梅饮', 'available', '乌梅与山楂片煮出酸香，加入少量冰糖，放凉后以桂花增香。饮品入口酸甜，带乌梅的微微烟香和桂花香，按冷饮供应，不加入辣味配料。', 14.00, 'drink', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '桂花乌梅饮');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '红枣银耳饮', 'available', '银耳泡发后与去核红枣慢煮，加入少量冰糖，煮至汤汁略有稠感后以杯装供应。入口柔滑，能喝到细碎银耳和红枣果肉，甜味温和，不加辣味配料。', 16.00, 'drink', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '红枣银耳饮');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '蜂蜜柚子茶', 'available', '柚子果酱加入温水搅匀，再调入蜂蜜，以热饮形式供应。入口酸甜，带柚皮的清香和一点果皮苦味，杯中保留少量柚子丝，不含辣味配料。', 18.00, 'drink', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '蜂蜜柚子茶');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '茉莉冷泡茶', 'available', '茉莉花茶以冷水浸泡后过滤茶叶，冷藏供应，不另加糖或奶。茶汤清透，带有茉莉花香和茶叶本身的轻微涩感，口味清淡，不加入辣味配料。', 10.00, 'drink', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '茉莉冷泡茶');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '陈皮普洱茶', 'available', '普洱熟茶与陈皮以热水冲泡，滤出茶叶后供应，不另加糖或奶。茶汤带普洱的醇厚茶香与陈皮的柑橘香，入口略有回甘，不添加辣味配料。', 12.00, 'drink', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '陈皮普洱茶');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '姜枣热饮', 'available', '生姜切片，与去核红枣和少量红糖一起煮制，过滤姜片后热饮供应。红枣香与姜香较明显，入口甜润中带姜的辛香，不加入辣椒或其他辣味调料。', 12.00, 'drink', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '姜枣热饮');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '苹果肉桂热饮', 'available', '苹果切片后与肉桂棒一同温煮，加入少量冰糖，保留部分苹果片杯装供应。味道酸甜，带肉桂的木质香料气息，属于热果饮，不加入辣椒。', 20.00, 'drink', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '苹果肉桂热饮');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '百香果气泡饮', 'available', '百香果果浆与气泡水混合，加入少量糖浆和冰块，保留可见的百香果籽。入口酸甜，气泡感明显，带热带果香与细小果籽口感，不加入辣味配料。', 18.00, 'drink', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '百香果气泡饮');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '荔枝苏打水', 'available', '荔枝果汁与苏打水、冰块调和，加入少量荔枝果肉后杯装供应。整体以荔枝的甜香为主，入口带轻盈气泡感，略有果汁酸味，不添加辣味配料。', 18.00, 'drink', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '荔枝苏打水');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '桂花乌龙奶茶', 'available', '乌龙茶冲泡后与牛奶、少量糖浆调和，以桂花增加香气，冷饮供应。茶香和奶香并存，入口柔和略甜，含牛奶，不加入辣椒或辣味香料。', 22.00, 'drink', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '桂花乌龙奶茶');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '山楂果饮', 'available', '山楂片加水煮出果味，过滤后加入少量冰糖，放凉后以冷饮供应。味道以酸为主、甜味作衬，带山楂本身的果香与轻微涩感，不加入辣味配料。', 14.00, 'drink', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '山楂果饮');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '瓶装饮用水', 'available', '提供原装密封的瓶装饮用水，按常温供应，不额外加入糖、果汁或其他调味。入口清淡，开封前可核对瓶盖密封情况，具体容量以现场瓶身标示为准。', 6.00, 'drink', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '瓶装饮用水');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '冬瓜排骨汤', 'available', '排骨焯水后与姜片慢炖，再加入冬瓜煮至软嫩，以盐调味。汤中保留带骨排骨和冬瓜块，肉香与瓜香融合，味道咸鲜清淡，不添加辣椒。', 36.00, 'soup', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '冬瓜排骨汤');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '番茄牛腩汤', 'available', '牛腩块炖软后，加入炒过的番茄和少量洋葱继续煮制。汤汁带番茄的自然酸味，牛腩有肉香与软韧口感，以盐调出咸鲜味，不加辣椒。', 48.00, 'soup', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '番茄牛腩汤');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '玉米鸡汤', 'available', '鸡块与玉米段、胡萝卜块和姜片一同慢炖，出锅前以盐调味。汤中鸡肉带鲜香，玉米略甜，整体咸鲜而不浓稠，不使用辣椒或辣椒油。', 38.00, 'soup', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '玉米鸡汤');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '海带豆腐汤', 'available', '海带切片后与嫩豆腐同煮，加入少量姜丝和盐调味，保留清汤口感。豆腐软嫩，海带有轻微韧性，味道咸鲜，本汤不放肉类或辣椒。', 22.00, 'soup', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '海带豆腐汤');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '菌菇汤', 'available', '香菇、白玉菇和杏鲍菇切配后煮成汤，加入少量葱段，以盐调味。不同菌菇带来软嫩和弹韧的口感，汤味咸鲜，菌香突出，不添加肉类或辣椒。', 28.00, 'soup', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '菌菇汤');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '紫菜蛋花汤', 'available', '紫菜放入沸水中煮开，缓缓淋入蛋液形成蛋花，加入少量葱花和盐。汤体清爽，蛋花柔软，紫菜香气明显，不放辣椒，含鸡蛋配料。', 16.00, 'soup', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '紫菜蛋花汤');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '酸辣汤', 'available', '豆腐丝、木耳丝与鸡蛋同煮，加入米醋、白胡椒和辣椒碎，最后薄芡收汤。入口酸味突出，辣味随后显现，汤体略稠，按中辣口味制作。', 26.00, 'soup', 'medium'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '酸辣汤');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '胡椒猪肚汤', 'available', '猪肚处理后切条，与姜片和白胡椒慢煮，保留汤汁和肚条一同上桌。猪肚有嚼劲，汤味咸鲜，白胡椒带来明确但较轻的辛辣感，归为微辣口味。', 48.00, 'soup', 'mild'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '胡椒猪肚汤');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '萝卜羊肉汤', 'available', '羊肉切块后与白萝卜、姜片一同炖煮，以盐调味，出锅点缀葱花。羊肉软中有韧性，萝卜吸收汤汁，汤味咸鲜并保留羊肉香，不添加辣椒。', 58.00, 'soup', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '萝卜羊肉汤');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '鲜虾豆腐汤', 'available', '鲜虾与嫩豆腐、少量姜丝煮成汤，以盐调出咸鲜味，出锅前撒葱花。虾肉紧实，豆腐柔软，汤汁以虾的鲜香为主，不加辣椒，保留虾壳上桌。', 42.00, 'soup', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '鲜虾豆腐汤');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '丝瓜蛤蜊汤', 'available', '蛤蜊煮至开口后加入丝瓜块和姜丝，煮熟后以少量盐调味。丝瓜软嫩，蛤蜊带海味鲜香，汤体清淡不辣，蛤蜊连壳盛装，上桌时需留意贝壳。', 38.00, 'soup', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '丝瓜蛤蜊汤');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '莲藕排骨汤', 'available', '排骨焯水后与莲藕块、姜片慢炖，以盐调味，不另勾芡。莲藕煮后粉糯，排骨保留骨边肉香，汤中带藕香与肉香，味道咸鲜，不放辣椒。', 42.00, 'soup', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '莲藕排骨汤');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '白菜丸子汤', 'available', '猪肉末调成丸子，煮至熟透后加入白菜叶和少量姜丝，最后以盐调味。丸子紧实有弹性，白菜柔软，汤味以肉香和菜香为主，不添加辣椒。', 32.00, 'soup', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '白菜丸子汤');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '香菇鸡丸汤', 'available', '鸡肉末与切碎香菇调成丸子，放入汤中煮熟，再加入香菇片和葱花。鸡丸口感细嫩，菌菇香气明显，整体为清淡咸鲜的汤品，不放辣椒。', 34.00, 'soup', 'none'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '香菇鸡丸汤');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '金汤酸菜肥牛汤', 'available', '用南瓜泥调出金色汤底，加入酸菜、金针菇和少量泡椒，最后烫熟肥牛片。汤味酸香咸鲜，牛肉柔嫩，泡椒带来轻微辣感，按微辣口味制作。', 56.00, 'soup', 'mild'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '金汤酸菜肥牛汤');
+
+INSERT INTO dish (dish_name, dish_status, dish_introduction, price, category, spicy_level)
+SELECT '香辣鱼片汤', 'available', '鱼片与豆芽同煮，加入小米椒、干辣椒和花椒，出锅前淋少量热油激香。汤汁咸鲜麻辣，鱼片嫩滑，辣椒用量较足，按特辣口味制作。', 46.00, 'soup', 'high'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM dish WHERE dish_name = '香辣鱼片汤');
+
+COMMIT;

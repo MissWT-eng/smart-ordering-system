@@ -17,6 +17,7 @@ import com.luwei.ordering.mapper.DishMapper;
 import com.luwei.ordering.mapper.RecommendationLogMapper;
 import com.luwei.ordering.mapper.UserMapper;
 import com.luwei.ordering.service.*;
+import jakarta.annotation.PostConstruct;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -65,6 +66,21 @@ public class RecommendationServiceImpl implements RecommendationService {
     private final TokenService tokenService;
     //去做request中的参数校验
     private final Validator validator;
+    //菜品召回数量
+    @Value("${recommendation.recall-limit}")
+    private int recallLimit;
+    @Value("${recommendation.result-limit}")
+    private int resultLimit;
+
+    @PostConstruct
+    private void validateRecommendationLimits(){
+        if(!(recallLimit > 0) || !(resultLimit > 0)){
+            throw new IllegalArgumentException("当前召回数量或者结果数量不合法");
+        }
+        if(! (recallLimit >= resultLimit)){
+            throw new IllegalArgumentException("当前召回数量小于结果数量");
+        }
+    }
 
     @Override
     public RecommendationResponse recommendDishes(RecommendationRequest request, String token) {
@@ -109,19 +125,19 @@ public class RecommendationServiceImpl implements RecommendationService {
             condition = analyzer.analyze(request.getPreference());
         }
         catch (Exception e){
-            log.error("偏好分析失败,降级为无过滤条件:{}" , request.getPreference() , e);
-            condition = null;
+            log.error("推荐条件解析失败:{}" , e);
+            throw new BusinessException(ErrorCode.PREFERENCE_ANALYSIS_FAILED);
         }
 
+        if(condition == null
+                || condition.spicyLevels() == null
+                || condition.excludeCategories() == null){
+            throw new BusinessException(ErrorCode.PREFERENCE_ANALYSIS_FAILED);
+        }
 
         //调用dishVector的方法，向量化preference进行top5的检索
-        List<DishMatch> dishMatches = dishVectorService.searchDishes(request.getPreference(), 5, condition);
+        List<DishMatch> dishMatches = dishVectorService.searchDishes(request.getPreference(), recallLimit, condition);
 
-        //如果带条件过滤检索出菜品为空,降级做无过滤
-        if(dishMatches.isEmpty() && condition != null){
-            log.warn("带条件过滤当前检索出菜品为空,降级做无过滤,preference:{}" , request.getPreference());
-            dishMatches = dishVectorService.searchDishes(request.getPreference(), 5, null);
-        }
         //取序号，按相似度降级取
         List<Long> dishNumbers = dishMatches.stream()
                                             .map(DishMatch::dishNumber)
@@ -149,7 +165,12 @@ public class RecommendationServiceImpl implements RecommendationService {
                                                     .toList();
 
         //这个检验主要是为了防止向量库中检索出已下架的菜品被推荐
-        if(dishEntities.isEmpty()) return new RecommendationResponse(List.of(),"您喜欢的菜暂时都不在做，看看今日菜单里其他的？");
+        if (dishEntities.isEmpty()) {
+            return new RecommendationResponse(
+                    List.of(),
+                    "暂时没有找到符合当前要求的菜品，您是否愿意调整条件？"
+            );
+        }
 
         //获取历史的 dishNumber -> affinity 硬反馈用来重排 (置信度 * 剧中)
 
@@ -187,9 +208,18 @@ public class RecommendationServiceImpl implements RecommendationService {
                     kept.add(dish);
                 }
             }
-            if(kept.isEmpty()) return new RecommendationResponse(List.of(),"您的预算有点低，要不加点预算再看看");
+            if(kept.isEmpty()) return new RecommendationResponse(List.of(),"本次未找到符合当前预算的候选菜品，是否愿意调整需求？");
             dishEntities = kept;
         }
+
+        //截取并生成最终的finalCandidateIds
+        dishEntities = dishEntities.stream()
+                .limit(resultLimit)
+                .toList();
+
+        Set<Long> finalCandidateIds = dishEntities.stream()
+                .map(DishEntity::getDishNumber)
+                .collect(Collectors.toSet());
 
         //把实体类转化为String字符串
         String dishInfo =  dishEntities.stream()
@@ -237,7 +267,7 @@ public class RecommendationServiceImpl implements RecommendationService {
         if(result != null && result.recommendations() != null){
             for(DishReason r : result.recommendations()){
                 if(r.dishNumber() == null || r.reason() == null) continue;
-                if(!availableMap.containsKey(r.dishNumber())){
+                if(!finalCandidateIds.contains(r.dishNumber())){
                     log.warn("LLM 返回了候选集外的菜品编号, 已丢弃:{}" , r.dishNumber());
                     continue;
                 }
@@ -246,7 +276,7 @@ public class RecommendationServiceImpl implements RecommendationService {
         }
         //主推编号检验 + 兜底
         Long primaryNumber = (result == null)? null : result.primaryDishNumber();
-        if(primaryNumber != null && !availableMap.containsKey(primaryNumber)){
+        if(primaryNumber != null && !finalCandidateIds.contains(primaryNumber)){
             log.warn("LLM 返回的主推编号不在候选集中 , 已忽略:{}" , primaryNumber);
             primaryNumber = null;
         }

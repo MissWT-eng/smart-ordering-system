@@ -53,7 +53,8 @@ public class DishTools {
     public RecommendationToolResult recommendDish(
             @P(value = "顾客口味/场景偏好，如『清淡下饭』『来点辣的』", required = true) String preference,
             @P(value = "用餐人数", required = false) Integer peopleNum,
-            @P(value = "预算上限（元）", required = false) BigDecimal budget) {
+            @P(value = "预算上限（元）", required = false) BigDecimal budget,
+            InvocationParameters parameters) {
 
         // 兜底：preference 是唯一的必填,空了直接给第一层的LLM返回结果
         if (preference == null || preference.isBlank()) {
@@ -66,16 +67,29 @@ public class DishTools {
 
         }
 
+        Long userId = parameters.get("userId");
+        String userToken = parameters.get("userToken");
+
         RecommendationRequest req = new RecommendationRequest();
         req.setPreference(preference);
         req.setPeopleNum(peopleNum);
-        req.setBudget(budget);            // userId 留空 = 游客，token 传 null
+        req.setBudget(budget);
+        req.setUserId(userId);
         RecommendationResponse resp;
 
         try {
-            resp = recommendationService.recommendDishes(req, null);
+            resp = recommendationService.recommendDishes(req, userToken);
         }
         catch (BusinessException e) {
+            if(e.getErrorCode() == ErrorCode.PREFERENCE_ANALYSIS_FAILED){
+                return new RecommendationToolResult(
+                        RecommendationToolResult.Status.SERVICE_UNAVAILABLE,
+                        List.of(),
+                        e.getMessage(),
+                        "说明推荐服务暂时不可用，保留用户原要求，结束本轮推荐；"
+                                + "不要自动放宽条件或更换工具绕过失败。"
+                );
+            }
             if (e.getErrorCode() != ErrorCode.PARAM_ERROR) {
                 throw e;
             }

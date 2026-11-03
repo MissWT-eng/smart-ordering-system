@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>智能点餐 · 今天吃点什么</title>
   <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="agent.css?v=20261026-2" />
+  <link rel="stylesheet" href="agent.css?v=20261103-2" />
   <link rel="stylesheet" href="content.css?v=20261026-1" />
 </head>
 <body>
@@ -18,6 +18,8 @@
     <symbol id="i-orders" viewBox="0 0 24 24"><path d="M6 3h12v19l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6m-6 4h6m-6 4h3"/></symbol>
     <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
     <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="m11 4-6 5H2v6h3l6 5V4Zm4 4a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20 3c-7-1-15 1-15 8a7 7 0 0 0 7 7c7 0 9-8 8-15Z"/><path d="M3 21 15 9m-8 8v-6m0 6h6"/></symbol>
     <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h6m4 0h6M4 17h10m4 0h2"/><circle cx="12" cy="7" r="2"/><circle cx="16" cy="17" r="2"/></symbol>
@@ -114,6 +116,16 @@
             <form id="chatForm" class="chat-composer">
               <label class="sr-only" for="chatInput">告诉点餐助手你的需求</label>
               <textarea id="chatInput" rows="2" maxlength="2000" placeholder="今天想吃什么？说说你的想法……" aria-describedby="chatInputHelp"></textarea>
+              <div class="speech-controls">
+                <button id="recordSpeech" class="record-speech" type="button" aria-pressed="false" aria-controls="speechStatus"><svg class="icon" aria-hidden="true"><use href="#i-mic"/></svg><span>语音输入</span></button>
+                <button id="cancelSpeech" class="cancel-speech hidden" type="button">取消录音</button>
+                <p id="speechStatus" class="speech-status" role="status" aria-live="polite"></p>
+              </div>
+              <div id="speechTranscriptPanel" class="speech-transcript hidden" aria-labelledby="speechTranscriptTitle">
+                <p id="speechTranscriptTitle" class="speech-transcript-title">识别结果，检查后再插入</p>
+                <p id="speechTranscriptText" class="speech-transcript-text"></p>
+                <div class="speech-transcript-actions"><button id="insertSpeechTranscript" type="button">插入输入框</button><button id="discardSpeechTranscript" type="button">丢弃结果</button></div>
+              </div>
               <div class="composer-actions">
                 <span class="composer-assistant"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>你的专属点餐助手</span>
                 <div><span id="chatInputCount">0 / 2000</span><button id="stopChat" class="stop-chat hidden" type="button">停止接收</button><button id="sendChat" class="send-chat" type="submit" disabled>发送 <svg class="icon" aria-hidden="true"><use href="#i-up"/></svg></button></div>
@@ -382,7 +394,7 @@
     <div class="confirm-actions"><button id="cancelClearTaste" type="button" class="btn-ghost">保留口味</button><button id="confirmClearTaste" type="button" class="btn-primary">确认清除</button></div>
   </dialog>
 
-  <script src="app.js?v=20261026-1"></script>
-  <script type="module" src="agent.js?v=20261026-3"></script>
+  <script src="app.js?v=20261102-2"></script>
+  <script type="module" src="agent.js?v=20261103-2"></script>
 </body>
 </html>

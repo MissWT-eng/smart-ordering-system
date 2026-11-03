@@ -6,10 +6,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 
 @Slf4j
@@ -67,4 +70,24 @@ public class GlobalExceptionHandler {
         log.debug("异步响应连接已不可用", e);
     }
 
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUploadTooLarge(MaxUploadSizeExceededException e){
+        return ResponseEntity.status(ErrorCode.UPLOAD_TOO_LARGE.getCode())
+                             .contentType(MediaType.APPLICATION_JSON)
+                             .body(ApiResponse.error(ErrorCode.UPLOAD_TOO_LARGE));
+    }
+
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingRequest(MissingServletRequestPartException e){
+        return ResponseEntity.status(ErrorCode.PARAM_ERROR.getCode())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(ApiResponse.error(ErrorCode.PARAM_ERROR));
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException e){
+        return ResponseEntity.status(ErrorCode.UNSUPPORTED_MEDIA_TYPE.getCode())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(ApiResponse.error(ErrorCode.UNSUPPORTED_MEDIA_TYPE));
+    }
 }

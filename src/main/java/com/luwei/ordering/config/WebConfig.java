@@ -47,7 +47,8 @@ public class WebConfig implements WebMvcConfigurer {
                         "/agent/chat/stream",// V2 Agent 入口（内部自己处理游客/注册）
                         //商户端交给 AdminInterceptor，避免被 auth 误拦
                         "/admin/**",
-                        "/order-drafts/*/revisions"
+                        "/order-drafts/*/revisions",
+                        "/order-drafts/*/order"
                 );
     }
 

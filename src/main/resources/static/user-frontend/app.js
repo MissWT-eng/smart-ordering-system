@@ -54,7 +54,9 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.classList.add("hidden"), 2200);
 }
 
-/** 统一请求封装：自动处理 code/msg，非 0 弹 msg 并抛错；401 自动清登录态 */
+let authExpiryHandler = null;
+
+/** 统一请求封装：自动处理 code/msg，非 0 弹 msg 并抛错；401 处理登录失效 */
 async function api(path, options = {}) {
   const requestToken = options.headers?.["X-User-Token"];
   const expireThisIdentity = () => {
@@ -96,9 +98,14 @@ function authHeaders() {
   return state.user && state.user.token ? { "X-User-Token": state.user.token } : {};
 }
 
-/** 401：token 过期/无效，清空本地登录态 */
+/** 401：优先保留待核实提交的归属；其他场景清空失效登录态。 */
 function handleAuthExpired() {
   if (!state.user) return;
+  // An unresolved confirmation must keep its owner until re-login or an explicit identity switch.
+  if (authExpiryHandler?.(state.user) === true) {
+    stopOrderPolling();
+    return;
+  }
   state.user = null;
   localStorage.removeItem("ordering_user");
   renderLoginBtn();
@@ -216,7 +223,7 @@ function renderLoginBtn() {
 function refreshCurrentPage() {
   state.serverOrders = [];
   $("#orderList").replaceChildren();
-  if (state.page === "orders") loadOrders();
+  if (state.page === "orders") { loadOrders(); startOrderPolling(); }
 }
 
 /** 需要登录的操作先检查 */
@@ -935,8 +942,8 @@ async function submitRatings() {
     for (const c of changes) {
       await api("/feedback", {
         method: "POST",
+        headers: authHeaders(),
         body: JSON.stringify({
-          userId: state.user.userId,
           dishNumber: c.dishNumber,
           feedbackScore: c.score,
         }),
@@ -984,7 +991,7 @@ function showOrderSuccess(order) {
   rateState.submitted = new Map();
   renderOrderDetail(order);
 
-  // 评分接口需要 userId：游客单不显示评分区
+  // 评分接口需要登录凭证：游客单不显示评分区
   document.querySelector(".rate-section").classList.toggle("hidden", !state.user);
 
   // 游客单没有账号可挂，只能存本机，并在弹窗里说清楚
@@ -1142,6 +1149,7 @@ renderCartBar();
 document.querySelectorAll("#categoryFilter .chip").forEach((chip) => chip.setAttribute("aria-pressed", String(chip.classList.contains("active"))));
 window.OrderingUI = Object.freeze({
   api, authHeaders, toast, switchPage, handleAuthExpired,
+  setAuthExpiryHandler: (handler) => { authExpiryHandler = handler; },
   getUser: () => state.user,
   getApiBase: () => API_BASE,
   openLogin: () => openModal("loginModal"),

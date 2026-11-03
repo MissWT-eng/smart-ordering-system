@@ -183,7 +183,23 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .message-state { color: #abb19f; font-size: 10px; line-height: 1.8; margin-top: 10px; }
 .message-state:empty { display: none; }
 .message-state.is-error { color: var(--seal); }
-.message-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 13px 0 0 42px; padding-top: 8px; }
+.order-recovery { margin: 18px 0 0 42px; padding: 18px; border: 1px solid #e4d5b5; border-radius: 14px; background: linear-gradient(135deg, #fbf7ed, #f7f0df); box-shadow: inset 0 1px #fff9; }
+.recovery-heading { display: flex; align-items: center; gap: 8px; color: #967c4d; }
+.recovery-heading .icon { width: 18px; height: 18px; }
+.recovery-heading strong { font-size: 13px; font-weight: 550; }
+.recovery-feedback { margin-top: 11px; font-size: 12px; color: #9a8a6c; line-height: 1.9; overflow-wrap: anywhere; }
+.recovery-feedback.is-error { color: #ab7354; }
+.recovery-details { margin-top: 13px; color: #b1a488; font-size: 10px; line-height: 1.8; }
+.recovery-details summary { cursor: pointer; padding: 4px 0; }
+.recovery-details p { margin-top: 5px; overflow-wrap: anywhere; color: #9d947b; }
+.order-lookup-button { margin-top: 14px; min-height: 39px; padding: 9px 14px; border-radius: 9px; font-size: 12px; letter-spacing: 0; color: #8b744a; background: #fffdf5; border-color: #ddcba6; }
+.order-lookup-button:hover:not(:disabled) { color: #775d32; background: #fcf4df; border-color: #c3ac7d; }
+.order-lookup-button:disabled { cursor: wait; opacity: .6; }
+.order-recovery.is-resolved { background: #f0f4e8; border-color: #d4dfc2; }
+.order-recovery.is-resolved .recovery-heading { color: #728658; }
+.order-recovery.is-resolved .recovery-feedback { color: #8b9976; }
+.message-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 13px 0 0 42px; padding-top: 8px; }
+.message-tools .message-state { margin-right: auto !important; }
 .chat-message.is-assistant .message-tools .message-state { padding: 0; margin: 0; color: #a7ac94; font-size: 10px; }
 .chat-message.is-assistant .message-tools .message-state.is-error { color: var(--seal); }
 .message-tools .message-state::before { content: ""; display: inline-block; vertical-align: middle; width: 4px; height: 4px; border-radius: 50%; background: #a8b38f; margin-right: 6px; }
@@ -194,6 +210,14 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .copy-reply:active { transform: translateY(1px); }
 .copy-reply.is-copied { color: #829563; }
 .copy-reply:disabled { cursor: default; }
+.read-reply { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 5px 8px; border: 1px solid #dde4d0; border-radius: 7px; color: #7a8968; background: #f5f8ee; font: 10px/1.6 var(--sans); cursor: pointer; }
+.read-reply .icon { width: 14px; height: 14px; }
+.read-reply:hover { color: #596e47; background: #eaf0df; }
+.read-reply[aria-pressed="true"] { color: #a15f43; border-color: #dfbda9; background: #fff3eb; }
+.read-reply:disabled { opacity: .55; cursor: not-allowed; }
+.speech-playback-status { flex-basis: 100%; min-width: 0; color: #8b947c; font-size: 10px; line-height: 1.7; overflow-wrap: anywhere; }
+.speech-playback-status:empty { display: none; }
+.speech-playback-status.is-error { color: #a15f43; }
 
 /* A grounded, always-visible composer. */
 .chat-bottom { flex-shrink: 0; position: relative; width: 100%; max-width: 820px; margin: 0 auto; padding: 14px 25px 20px; background: linear-gradient(#fcfaf400, #fcfaf4 35%); }
@@ -201,6 +225,20 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .chat-composer:focus-within { border-color: #bb946d; box-shadow: inset 0 1px #fff, 0 0 0 3px #bb946d0c, 0 9px 24px #5d543c0f; }
 .chat-composer textarea { display: block; width: 100%; min-height: 54px; max-height: 150px; resize: none; border: 0; outline: 0; background: transparent; color: #46523d; font: 14px/1.8 var(--sans); scrollbar-width: thin; }
 .chat-composer textarea::placeholder { color: #95977f; }
+.speech-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 8px; }
+.record-speech, .cancel-speech, .speech-transcript-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 7px 10px; border: 1px solid #d8decd; border-radius: 9px; color: #667852; background: #f7f9f0; font: 11px var(--sans); cursor: pointer; }
+.record-speech .icon { width: 15px; height: 15px; }
+.record-speech:hover { background: #edf2e3; }
+.record-speech.is-recording { color: #a04f3a; border-color: #d8ab96; background: #fff0e8; }
+.record-speech:disabled, .speech-transcript-actions button:disabled { opacity: .55; cursor: not-allowed; }
+.cancel-speech { color: #817763; border-color: #e0dbce; background: #fffdf8; }
+.speech-status { flex: 1 1 150px; min-width: 0; margin: 0; color: #879079; font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
+.speech-status.is-error { color: #a15f43; }
+.speech-transcript { min-width: 0; margin-top: 10px; padding: 11px; border: 1px solid #dce3cc; border-radius: 10px; background: #f8faf3; }
+.speech-transcript-title { margin: 0 0 7px; color: #6b7d58; font-size: 11px; }
+.speech-transcript-text { max-height: 120px; margin: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.8; }
+.speech-transcript-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+.speech-transcript-actions button:last-child { color: #8a826f; background: #fffdf8; }
 .composer-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 9px; }
 .composer-assistant { display: flex; align-items: center; gap: 6px; color: #92947c; font-size: 11px; }
 .composer-assistant .icon { width: 14px; height: 14px; }
@@ -432,6 +470,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
   .message-content { font-size: 14px; }
   .chat-message.is-assistant .message-content, .chat-message.is-assistant .message-state { padding-left: 0; }
   .message-tools { margin-left: 0; }
+  .order-recovery { margin-left: 0; padding: 16px; }
+  .order-lookup-button { min-height: 42px; }
   .copy-reply { min-height: 32px; }
   .tool-card { margin-left: 0; padding: 17px; }
   .tool-card h3 { font-size: 14px; }

@@ -52,7 +52,12 @@ export async function consumeAgentStream(response, handlers = {}) {
   if (!response.ok || !type.includes("text/event-stream")) {
     let body;
     try { body = await response.json(); } catch { /* May be a proxy error page. */ }
-    throw new ChatStreamError(body?.msg || "暂时无法开始回复，请稍后再试", response.status);
+    const error = new ChatStreamError(body?.msg || "暂时无法开始回复，请稍后再试", response.status);
+    error.phase = "preflight";
+    // A gateway/server failure can hide a completed write. Only explicit refusals are final.
+    error.rejected = (response.status >= 400 && response.status < 500 && ![408, 499].includes(response.status))
+      || (response.status === 503 && body?.code === 503 && /当前聊天请求过多|当前会话较多/.test(body?.msg || ""));
+    throw error;
   }
   if (!response.body) throw new ChatStreamError("浏览器无法读取流式回复");
 

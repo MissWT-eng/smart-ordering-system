@@ -45,6 +45,24 @@ test("proxy HTML failure is reported without displaying server HTML", async () =
   await assert.rejects(consumeAgentStream(new Response("<html>private proxy error</html>", { status: 503 })),
     (error) => error.status === 503 && !error.message.includes("private"));
 });
+
+test("explicit preflight refusals differ from uncertain gateway failures", async () => {
+  for (const status of [400, 401, 403, 404, 409, 429]) {
+    await assert.rejects(consumeAgentStream(Response.json({ code: status, msg: "请求被拒绝" }, { status })),
+      (error) => error.phase === "preflight" && error.rejected === true);
+  }
+  await assert.rejects(consumeAgentStream(Response.json({ code: 503, msg: "当前聊天请求过多，请稍后重试" }, { status: 503 })),
+    (error) => error.rejected === true);
+  for (const status of [408, 499, 500, 502, 503, 504]) {
+    await assert.rejects(consumeAgentStream(new Response("gateway failure", { status })),
+      (error) => error.phase === "preflight" && error.rejected === false);
+  }
+});
+
+test("generation errors after stream startup are not preflight rejections", async () => {
+  await assert.rejects(consumeAgentStream(response(meta + frame("error", { code: 504, msg: "本次回复生成失败" }))),
+    (error) => error.status === 504 && error.rejected !== true);
+});
 test("model error is terminal and never calls onDone", async () => {
   let count = 0;
   await assert.rejects(consumeAgentStream(response(meta + frame("error", { code: 504, msg: "生成失败" })), { onDone: () => count++ }),

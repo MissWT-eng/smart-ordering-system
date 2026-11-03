@@ -6,11 +6,18 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:root}
     password: ${SPRING_DATASOURCE_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
-
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
   data:
     redis:
       host: localhost
       port: 6379
+
+server:
+  tomcat:
+    max-swallow-size: 8MB
 
 auth:
   token-ttl-hours: 2
@@ -60,6 +67,10 @@ rerank:
   beta: 0.4
   confidence-k: 2.0
 
+recommendation:
+  recall-limit: 20
+  result-limit: 5
+
 weather:
   api-key: ${QWEATHER_API_KEY}
   base-url: ${QWEATHER_BASE_URL}
@@ -70,4 +81,12 @@ weather:
 admin:
   token: ${ADMIN_TOKEN}
 
+speech:
+  base-url: ${ALIYUN_SPEECH_BASE_URL:}
+  api-key: ${DASHSCOPE_API_KEY:}
+  asr:
+    model: qwen3-asr-flash
+  tts:
+    model: cosyvoice-v3-flash
+    voice: longanhuan
 

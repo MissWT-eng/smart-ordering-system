@@ -16,6 +16,7 @@ public record RecommendationToolResult(
     public enum Status{
         SUCCESS,
         NO_MATCH,
+        SERVICE_UNAVAILABLE,
         INVALID_ARGUMENTS
     }
 

@@ -1,12 +1,16 @@
 # 智能点餐系统 · V2 Agent
 
-基于 **Java 17、Spring Boot、LangChain4j 和 DeepSeek** 的智能点餐项目。顾客用自然语言描述口味、人数和预算，系统检索菜品、生成候选搭配，由后端核算草稿报价，再经过用户明确确认创建正式订单。
+[![Build and frontend checks](https://github.com/MissWT-eng/smart-ordering-system/actions/workflows/ci.yml/badge.svg)](https://github.com/MissWT-eng/smart-ordering-system/actions/workflows/ci.yml)
+
+基于 **Java 17、Spring Boot 4、LangChain4j 和 DeepSeek** 的点餐助手。顾客通过文字或录音描述需求，Agent 检索菜品并调用业务工具；后端按真实价格核算草稿，用户确认后创建订单，完成的回复支持按需朗读。
 
 项目保留 V1 的菜单、推荐、订单和反馈接口，V2 在现有 Service 之上增加工具调用与草稿确认流程。
 
-> **当前进度（2026-10-26）**：AI 报价卡支持调整数量、删除菜品和后端重新核价，Redis 原子替换旧草稿，并通过 `currentDraftId` 将新报价衔接到后续聊天。同步和 SSE 真实模型均已验证“1份8元 → 2份16元”后读取新数量、金额及编号，不重复试算或下单。推送前 Java 36 项、前端 30 项自动测试及脚本语法检查通过。详见[报价修改与上下文验证记录](docs/m2-draft-revision-verification.md)；天气工具和共享缓存见[天气验证记录](docs/m2-weather-verification.md)。
+> **当前进度（2026-11-03）**：M2 核心点餐与记忆流程已完成分阶段验收。近期新增中断后的订单结果核实、可信身份参与评分重排、60 道演示菜品，以及阿里云语音输入和龙安欢按需朗读。朗读已完成真实前后端联调，语音输入已通过浏览器 WebM 编码与真实云端识别验证；真人麦克风完整体验仍单独确认。待办与验收范围见[阶段清单](docs/m2-refinement-todo.md)。
 
-M2 首版的多轮点餐、98→106→80 元报价、明确确认下单和长期口味闭环见[收尾记录](docs/m2-closeout-verification.md)。本机缓存会话默认上限 100；候选数量偏差、M1 故障恢复和全面 V1 回归仍保留为后续事项。
+项目重点是把模型工具调用落到可核验的业务流程：**身份来自后端，价格来自数据库，订单以真实回执为准**。当前为单门店、单实例演示项目，真实支付、商户运营 Agent、多实例共享记忆尚未接入。
+
+[功能与流程](#已实现的功能) · [接口与示例](#主要接口) · [本地运行](#本地运行) · [验证范围](#验证与已知边界) · [后续计划](#当前边界与后续计划)
 
 ![Agent 点餐首页](docs/images/agent-content-desktop.png)
 
@@ -18,6 +22,19 @@ M2 首版的多轮点餐、98→106→80 元报价、明确确认下单和长期
 ![真实订单回执](docs/images/m2-order-receipt-20261021.png)
 
 ![新会话读取长期口味](docs/images/m2-profile-new-conversation-20261021.png)
+
+</details>
+
+<details>
+<summary>查看订单回复中断后的核实入口与手机布局</summary>
+
+以下截图来自隔离浏览器回归：确认回复中断时保留待核实入口，通过只读查询展示订单回执，不自动重复下单。
+
+![订单结果待核实](docs/images/agent-order-recovery-pending.png)
+
+![核实后的订单回执](docs/images/agent-order-recovered.png)
+
+![手机端订单核实](docs/images/agent-order-recovery-mobile.png)
 
 </details>
 
@@ -37,8 +54,9 @@ M2 首版的多轮点餐、98→106→80 元报价、明确确认下单和长期
 | 向量化模型 | BGE-M3（硅基流动 `Pro/BAAI/bge-m3`） | 菜品文本与查询向量化 |
 | 向量检索 | Qdrant；LangChain4j Qdrant 模块 1.19.0-beta29 | 语义召回、辣度与分类等元数据过滤 |
 | 外部数据 | 和风天气 API | 独立天气工具与推荐上下文，结构化返回、超时与失败降级 |
+| 语音服务 | 阿里云百炼：`qwen3-asr-flash`、`cosyvoice-v3-flash` / `longanhuan` | 录音识别为可编辑文字；首次点击合成朗读，页面内重播复用音频 |
 | 对象映射与校验 | MapStruct 1.6.3、Lombok、Jakarta Validation | DTO 映射、参数约束 |
-| 前端 | 原生 HTML / CSS / JavaScript、ES Modules | V2 SSE 聊天、报价确认与画像管理；保留 V1 页面及商户原型 |
+| 前端 | 原生 HTML / CSS / JavaScript、ES Modules、MediaRecorder / Audio | SSE 聊天、报价编辑、订单核实、画像管理、录音与朗读；保留 V1 入口 |
 
 ## 已实现的功能
 
@@ -47,7 +65,7 @@ M2 首版的多轮点餐、98→106→80 元报价、明确确认下单和长期
 - **用户与游客**：手机号识别注册用户，签发 Redis 令牌；游客可以查看菜单、获取推荐和创建订单。
 - **菜单管理**：商户维护菜品信息和上下架状态，支持菜品向量同步及全量重建。
 - **RAG 推荐**：偏好分析 → 向量召回与元数据过滤 → 数据库核对在售菜品 → 候选排序与预算筛选 → 结合天气生成推荐理由。
-- **反馈重排**：V1 推荐接口在提供有效用户身份时，可结合该用户的历史菜品评分调整候选顺序。
+- **反馈重排**：推荐接口与 Agent 推荐工具均接通可信用户身份，可结合本人历史菜品评分调整候选顺序；游客不使用注册用户历史评分。
 - **订单与反馈**：创建订单、保存明细价格快照、分页查询历史订单、提交菜品反馈。
 - **状态与鉴权**：订单支持 `pending → paid / cancelled` 状态流转；用户信息、历史订单等受保护接口校验令牌与归属，商户接口使用独立令牌。当前没有接入真实支付。
 
@@ -66,7 +84,7 @@ M2 首版的多轮点餐、98→106→80 元报价、明确确认下单和长期
 
 推荐阶段的预算筛选目前是**候选菜品单价不高于预算**；组合总价由 `draftOrder` 根据选定数量与真实菜价，使用 `BigDecimal` 核算。超预算草稿可以返回给用户查看，但确认阶段会拒绝下单。
 
-推荐工具描述、内层推荐模型和外层 Agent 已统一输出规则：推荐阶段展示候选菜品及单价；用户要求不试算时，不生成草稿、不自行汇总组合金额或给出整单预算结论。真实模型回归的两个样例已遵守报价边界；指定推荐数量仍可能出现偏差，详见长期画像验证记录。
+推荐工具描述、内层推荐模型和外层 Agent 已统一输出规则：推荐阶段展示候选菜品及单价；用户要求不试算时，不生成草稿、不自行汇总组合金额或给出整单预算结论。用户指定推荐数量仍待程序化约束，当前最多返回 5 道候选不等于支持任意指定数量。
 
 ```mermaid
 flowchart TD
@@ -99,7 +117,25 @@ flowchart TD
 - **前端确认边界**：编辑后金额显示为待核价并禁用确认；重新报价成功后展示后端返回的新卡片，再由用户明确确认新编号。网络、超时、5xx 或不完整成功响应视为结果待核实，不自动重试写请求，也不继续确认旧价。
 - **续聊读取新报价**：后续聊天携带 `currentDraftId`，后端按当前身份读取草稿，仅将编号、有效期和报价注入 Agent。草稿过期或已替换时传入不可用状态，普通聊天仍可继续；越权仍返回 403。`currentDraftId` 表示讨论对象，`confirmedDraftId` 才表示本次明确确认目标，两者分别校验。
 
-分阶段完成 20 项替换检查、12 项互斥检查和 28 项独立 HTTP 检查；最新实现另通过 8 项真实 HTTP/模型检查，覆盖同步与流式续聊、失效状态及游客隔离。本轮未新增正式订单，范围和限制见[验证记录](docs/m2-draft-revision-verification.md)。
+替换、互斥与 HTTP/模型续聊检查覆盖旧报价失效、新数量和金额读取、预算继承及游客隔离，范围和限制见[验证记录](docs/m2-draft-revision-verification.md)。
+
+### M2：中断后的订单结果核实
+
+- **结果待核实**：已发送明确确认请求，却未收到可靠回执或明确拒绝时，页面保留该次提交的草稿编号，提供“核实订单结果”。普通聊天中断不展示下单核实入口。
+- **只读查询**：`GET /order-drafts/{draftId}/order` 按当前可信身份读取 MySQL 订单，不依赖 Redis 草稿仍然存在，也不重新提交订单。未查到时保持待核实，可稍后再次查询。
+- **身份恢复**：凭证过期时保留原提交归属，原账号重登后继续查询；切换账号则清理旧账号状态，旧 token 的迟到响应不会清掉新身份。
+- **首版范围**：当前页面保留恢复状态；刷新页面后的持久恢复仍待实现。26 项隔离浏览器回归范围见[前端验证记录](docs/m2-frontend-verification.md)。
+
+### M2：推荐与评分反馈
+
+推荐链路为 **偏好解析 → 带约束召回 → 在售核验与单价预算筛选 → 本人反馈重排 → 返回候选与理由**。
+
+- 召回数和返回数分别配置，当前为 20 / 5；启动时校验正数及两者关系，减少先取少量菜再筛预算造成的候选损失。
+- 偏好解析失败会明确返回不可用；受约束检索为空时保留用户限制，不改成无条件查询。
+- 同步和 SSE 入口通过 `InvocationParameters` 传递已校验的用户编号与凭证，工具将可信身份交给推荐 Service；凭证不进入模型参数或提示词。
+- 评分请求从 `X-User-Token` 获取本人编号，覆盖请求体可能传入的身份。真实评分与推荐对照中，相同向量候选下高分菜提升、低分菜退出前五，游客结果不受该用户评分影响。
+
+当前完成的是**具体菜品反馈参与候选重排**。同次评价修改、相似新菜偏好泛化、适度尝新和推荐效果评测留作后续，见[改进清单](docs/m2-refinement-todo.md#7-推荐基础链路与评分反馈首版已完成)。
 
 ### M2：门店天气与共享缓存
 
@@ -109,7 +145,7 @@ flowchart TD
 - **失败处理**：缓存读取、JSON 解析或字段校验失败时继续请求天气；写缓存失败仍返回已取得的天气。天气接口失败保留业务异常，不写失败缓存，推荐可以继续按口味与预算执行。
 - **首版范围**：城市名称与编号来自 YAML，当前配置为长春；仅支持门店当前天气，不提供任意城市查询或天气预报。缓存有效期与上游观测时间分别保留，不把读取缓存的时间当成新观测时间。
 
-12 项缓存边界检查及重启后的 4 次真实 HTTP 请求通过，包含不同游客、不同会话、推荐链路和 SSE；验收过程、TTL 数据与已知边界见[天气验证记录](docs/m2-weather-verification.md)。
+缓存边界与真实 HTTP 检查覆盖不同游客、不同会话、推荐链路和 SSE；TTL 数据与已知边界见[天气验证记录](docs/m2-weather-verification.md)。
 
 ### M2：短期会话记忆与生命周期
 
@@ -135,7 +171,7 @@ flowchart TD
 - **候选生成**：`proposeUserPreference` 仅处理长期口味候选；未传的工具参数保留原字段，补充说明传入更新后的完整文本。主动执行 Bean Validation，空白、无有效输入或超长文本返回 `INVALID_ARGUMENTS`，游客返回 `LOGIN_REQUIRED`。
 - **确认边界**：工具成功表示候选已生成，尚未保存。聊天响应的 `proposalToolResult` 来自本轮真实工具执行对象，以最后一次候选调用为准，普通聊天时为空。前端展示完整候选，点击“确认保存口味”后再调用独立画像 PUT；清除画像也需单独确认。聊天文本中的“确认”不会直接保存。
 
-本人画像接口通过 24 项真实 HTTP 与数据库检查；候选工具通过 17 项直接调用与 7 项真实 HTTP 行为检查。分阶段结果与范围见[长期画像验证记录](docs/m2-preference-verification.md)。
+本人画像读写、候选工具及真实 HTTP 行为已分阶段验证，范围见[长期画像验证记录](docs/m2-preference-verification.md)。
 
 ### M2：SSE 流式回复
 
@@ -151,6 +187,16 @@ flowchart TD
 
 保留快捷点餐、浏览菜单和历史订单入口。菜单支持菜名/简介搜索、分类组合筛选与价格排序，本地已选清单可调整数量；它与 AI 草稿报价分别管理。AI 首页提供可切换的本地灵感卡，阅读历史消息时保留滚动位置并提示新回复。身份切换会结束当前接收并清空页面对话及当前草稿引用；同页切换保留聊天，刷新页面开启新对话，目前没有历史聊天列表。界面、截图和实现阅读顺序见[前端说明](docs/m2-frontend-verification.md)。
 
+### M2：语音输入与按需朗读
+
+- **语音输入**：登录后录音，最长 60 秒、最大 5MiB。WebM/Opus 或 Ogg 上传后识别为可编辑文字，用户检查并手动发送；识别期间修改了原文时，结果单独保留，不覆盖输入、不自动提交。
+- **资源清理**：取消、设备异常、账号或会话变化会释放麦克风并丢弃迟到结果；浏览器权限不可用时仍可打字。
+- **回复朗读**：只为完成的回复提供朗读，首次点击调用 `cosyvoice-v3-flash + longanhuan`，音频下载为页面内 Blob 后支持停止和重播。开始录音会停止播放或取消合成等待。
+- **事实来源**：报价和订单优先读后端结构化摘要，过滤 Markdown、内部 UUID 与 URL；下单拒绝、待核实和已核实回执各自采用可靠状态。后端仅接收文字，模型、音色和风格指令由服务端配置。
+- **当前体验**：真实朗读联调及菜名、金额、份数读音、声音与语速已获手动体验确认；首播有时偏慢，待分阶段计时后再优化。语音输入的真人麦克风完整链路仍待单独确认。
+
+鉴权、浏览器与云端检查的区别见[语音验证记录](docs/m2-speech-verification.md)。
+
 ## 当前边界与后续计划
 
 | 项目 | 当前状态 |
@@ -161,13 +207,14 @@ flowchart TD
 | 自动续期与同会话并发消息 | Lua 原子校验及续期已实现；单实例同会话忙碌时明确拒绝，不同会话可并行 |
 | 重启后上下文失效提示 | 已实现实例编号检查和旧格式拒绝；通过实例切换模拟与 HTTP 检查，未执行真实进程重启演练 |
 | 长期口味画像 | 本人 CRUD、Agent 读取、候选与独立 PUT 已验证；真实页面确认保存、新对话读取、取消清除及明确清除通过 |
-| SSE / 流式响应 | 后端与前端已接通；最新 36 项 Java 测试、30 项前端测试通过，真实与受控场景分别记录 |
+| SSE / 流式响应 | 后端与前端已接通；正常、错误、断流及取消接收的验证范围分别记录，不自动重放写请求 |
 | 并发与容量 | 两种入口共享 4 个在途许可；本机缓存会话默认上限 100，空闲过期清理归还名额，受控与真实 HTTP 验收通过 |
 | Agent 前端 | 默认 AI 点餐页已接入；新版真实页面多轮调整、报价、明确下单及画像闭环通过，V1 入口继续保留 |
-| Agent 个性化推荐 | 长期口味已作为默认上下文；推荐工具仍未透传登录用户身份参与历史评分重排 |
+| Agent 个性化推荐 | 长期口味默认上下文与可信用户身份已接通；本人历史评分参与候选重排，改分规则及相似菜品泛化待完善 |
 | 推荐输出规范 | 报价边界的两个真实样例回归通过；请求 2～3 道菜时仍出现列出 4 道的数量偏差，待优化 |
 | 天气工具与共享缓存 | 独立工具、门店城市天气与 300 秒 Redis 缓存已验证；支持失败降级，命中不续期，保留真实观测时间 |
-| 报价编辑与续聊 | 数量调整、删除、重新核价、原子替换、单实例操作互斥及新报价上下文已接通；换菜和断流后的订单结果查询待做 |
+| 报价编辑与续聊 | 数量调整、删除、重新核价、原子替换及新报价上下文已接通；中断后的订单结果核实首版已完成，换菜与刷新页面后的待核实状态恢复待做 |
+| 语音输入与回复朗读 | 两个接口与前端已接通，TTS 真实联调与首版听感已确认；ASR 真人麦克风体验及首播延迟优化保留后续 |
 | 商户页面 | 仓库根目录提供界面原型，尚未接入后端 |
 | 支付、取消、历史查询工具 | Agent 尚未提供这些工具；订单管理接口与真实支付接入是不同能力 |
 
@@ -180,12 +227,15 @@ flowchart TD
 | POST | `/agent/chat` | V2 自然语言点餐与工具调用 | 支持游客；注册用户传令牌 |
 | POST | `/agent/chat/stream` | V2 SSE 流式回复，最终事件包含结构化候选 | 支持游客；注册用户传令牌 |
 | POST | `/order-drafts/{draftId}/revisions` | 修改原草稿数量或删除项，继承预算并生成新报价 | 本人草稿；游客保留 Session，注册用户传令牌 |
+| GET | `/order-drafts/{draftId}/order` | 只读核实本次确认的订单，返回 `found` 或 `not_found` | 当前身份须与原草稿/订单归属一致 |
+| POST | `/speech/recognize` | multipart 字段 `audio`，返回识别文字 `data.text` | 注册用户令牌 |
+| POST | `/speech/synthesize` | JSON 字段 `text`，返回音频地址、模型和音色 | 注册用户令牌 |
 | GET | `/weather` | 查询结构化门店天气，共用短时缓存 | 当前需有效用户令牌；游客可通过 Agent 查询 |
 | GET | `/dishes`、`/dishes/{dishNumber}` | 菜单列表、菜品详情 | 公开 |
 | POST | `/recommendations` | V1 智能推荐 | 支持游客；个性化推荐需用户身份 |
 | POST | `/orders` | V1 创建订单 | 公开；传入 userId 时检查用户存在及状态 |
 | GET | `/orders/{userId}` | 分页查询历史订单 | 用户令牌与归属校验 |
-| POST | `/feedback` | 提交菜品反馈 | 当前公开 |
+| POST | `/feedback` | 提交菜品反馈，用户编号由令牌确定 | 注册用户令牌 |
 | POST | `/users/identify` | 手机号识别并签发令牌 | 公开 |
 | GET | `/users/{userId}` | 用户信息 | 用户令牌与归属校验 |
 | GET | `/users/me/preference` | 查看本人长期口味，无记录时返回 `data: null` | 注册用户令牌 |
@@ -276,27 +326,43 @@ flowchart TD
 
 请求体不传用户编号。`spicyLevel` 可为 `none`、`mild`、`medium`、`high` 或 `null`。PUT 是整份替换：只修改一项时也应带上需要保留的另一项；提交 `{}` 会清空两个字段，但保留画像记录。聊天中的候选工具不执行这次写入。
 
-## 本轮验证
+### 语音接口示例
 
-- 核心点餐：草稿核价、确认下单、重复确认、超预算与价格变化拒绝、确认目标匹配及主要身份场景已有分阶段联调结果；最新实现对同一草稿的在途操作返回忙碌 409，完成后再次确认按已有订单返回，数据库唯一键继续兜底。
-- 短期记忆：真实模型多轮记忆、同一游客的新旧聊天隔离、游客与两个注册用户会话的双向越权拒绝及各自记忆读取均通过。
-- 过期与清理：真实 HTTP 过期后返回 404；另用实际 Controller、Service、LangChain4j 记忆和真实 Redis 完成 10 项临时验证，覆盖空闲清理、调用中保护、竞争和故障重试。
-- 滑动续期：8 项真实 HTTP、模型与 Redis 检查通过，包含反复续期、越权不续期及过期不重建。
-- 同会话并发：8 项受控检查与 3 项真实 HTTP 检查通过；受控 12 条同会话请求仅一条进入模型，其余 11 条为 409，正常与异常结束后均可再发送。
-- 注册用户隔离：8 项真实链路检查通过，包含双向越权、不带或无效 token 拒绝，以及同一用户换 token 后读取原会话。
-- 实例失效：6 项实际 Service 模拟与 7 项真实 HTTP 检查通过，覆盖本人旧实例 409、他人优先 403、旧格式缓存、过期不重建及重新开聊。
-- 缓存容量：12 项受控检查及 11 项真实 HTTP 检查通过，覆盖满额拒绝、已有会话续聊、清理恢复、故障保留及竞争；真实容量边界使用临时容量为 2 的实例，用户 8080 保持默认 100。详见[容量验证记录](docs/m2-capacity-verification.md)。
-- 本人画像接口：24 项真实 HTTP 与数据库检查通过，覆盖保存、修改、清空、删除、长度边界、身份隔离及令牌校验。
-- 画像上下文：完成 15 项画像相关检查；两次真实推荐的辣度与数据库一致，发现的推荐阶段组合报价问题随后通过两个样例回归，候选数量偏差仍保留为待办。
-- 候选生成：17 项工具直接调用与 7 项真实 HTTP 行为检查通过，覆盖空参数、字段保留、200/201 字边界、游客、候选改写及未确认不持久化。
-- 结构化候选：从实际工具结果提取字段，候选确认保存与下一轮读取完成真实链路验证，保留独立 PUT 的确认边界。
-- 流式聊天：9 项真实 HTTP、模型、MySQL 与 Redis 检查通过，覆盖增量输出、续聊、同步共享记忆、真实工具、结构化候选及入口拒绝；检查未新增订单、草稿或修改长期画像。
-- 自动化检查：2026-10-26 推送前重跑 `./mvnw -q test`，36 项 Java 测试全部通过；30 项 Node 测试及相关脚本语法检查通过。新增覆盖当前报价引用与确认授权区分、两个入口传递核验报价、草稿失效时继续聊天及越权拒绝。
-- 报价修改：数量调整、删除、预算继承、超预算、旧价失效和并发处理完成分阶段验证；最新同步和 SSE 真实模型均回答新草稿的 2 份热豆浆、16 元及新编号。8 项真实检查未触发额外试算或正式下单，六张业务表行数保持不变，见[报价修改与上下文记录](docs/m2-draft-revision-verification.md)。
-- 天气与缓存：正常查询、gzip、上游异常、超时与失败降级完成分阶段检查；最新实现通过 12 项缓存边界检查，以及重启后的连续天气查询、跨游客推荐和 SSE 共用缓存检查。Redis TTL 持续减少、数据及时间字段不变，订单、草稿与画像未新增，详见[天气验证记录](docs/m2-weather-verification.md)。
-- 浏览器联调：先前完成真实续聊、16 元草稿及取消确认；新版后续又通过多轮调整、98/106/80 元报价和明确下单，MySQL 核对 1 笔订单、3 条明细及 80 元合计；真实画像确认保存、新会话读取、取消清除和明确清除通过，专用账号及写入数据已清理。步骤及截图见[收尾记录](docs/m2-closeout-verification.md)。隔离服务的断流、身份切换和 101 道菜跨页等结果另按前端初次记录保留。
+语音接口复用 `X-User-Token` 鉴权。`POST /speech/recognize` 使用 `multipart/form-data` 上传文件字段 `audio`；前端由浏览器生成 boundary，不手写该请求的 Content-Type。
 
-慢模型、Redis 故障和实例切换采用可控模拟，临时验证程序及产物已删除；画像测试恢复原记录并清理本轮 token 与 Redis 会话。仓库已有自动化测试已针对本次代码重跑；历次手工业务验收仍按当时实现记录，未重新执行全部历史用例，也未接入持续集成。范围与复测步骤见[会话验证记录](docs/m2-memory-verification.md)、[长期画像验证记录](docs/m2-preference-verification.md)和[天气验证记录](docs/m2-weather-verification.md)。
+向 `POST /speech/synthesize` 提交 JSON：
+
+```json
+{"text":"这份搭配一共八十元，请核对后再确认下单。"}
+```
+
+成功响应的 `data` 为：
+
+```json
+{
+  "audioUrl": "https://<服务端返回的音频地址>",
+  "model": "cosyvoice-v3-flash",
+  "voice": "longanhuan"
+}
+```
+
+文字最多 1000 字符；音色和温和客服风格指令由后端决定，前端只提交文字。首次朗读等待完整合成及音频下载后播放，后续重播复用当前页面的音频，不再次合成；签名音频地址及 API Key 不写入前端日志。
+
+## 验证与已知边界
+
+| 范围 | 已有验证 | 记录 |
+| --- | --- | --- |
+| 点餐与报价 | 真实草稿核价、明确确认、超预算/价格变化拒绝、重复及并发提交、修改后续聊 | [报价与上下文](docs/m2-draft-revision-verification.md)、[真实页面收尾](docs/m2-closeout-verification.md) |
+| 会话与画像 | 多轮记忆、跨游客/注册用户隔离、TTL、清理、容量、画像候选确认与跨会话读取 | [会话](docs/m2-memory-verification.md)、[画像](docs/m2-preference-verification.md)、[容量](docs/m2-capacity-verification.md) |
+| 订单结果核实 | 45 项前端单元及 26 项隔离浏览器回归；空/残缺回执、401 恢复、身份切换及重复点击 | [前端记录](docs/m2-frontend-verification.md) |
+| 评分与推荐 | 真实浏览器评分、MySQL 归属、相同向量候选下本人排序变化与游客对照 | [推荐与反馈](docs/m2-refinement-todo.md#7-推荐基础链路与评分反馈首版已完成) |
+| 天气与缓存 | 缓存边界、TTL 保持、损坏/异常降级及真实 HTTP 跨入口复用 | [天气记录](docs/m2-weather-verification.md) |
+| 语音输入 | 录音生命周期 17 项、上传客户端 13 项、隔离浏览器 21 项；真实浏览器 WebM 云端识别成功 | [语音记录](docs/m2-speech-verification.md) |
+| 回复朗读 | Service 42 项、前端 29 项隔离检查；真实联调及首版读音/听感已手动确认 | [语音记录](docs/m2-speech-verification.md) |
+
+独立测试、隔离浏览器和真实云端/数据库检查分别记录。真人麦克风完整页面链路尚待单独确认；首播延迟待分阶段测量。完整故障恢复、全面 V1 回归、真实进程重启演练和多实例运行不在已完成范围内，当前不作为生产部署保证。
+
+[GitHub Actions](https://github.com/MissWT-eng/smart-ordering-system/actions/workflows/ci.yml) 在推送、PR 或手动触发时运行35项隔离Java测试、45项前端单元测试和脚本语法检查，不需要数据库、Redis、Qdrant或模型密钥。浏览器回归与真实云端联调仍按阶段记录单独执行。
 
 ## 本地运行
 
@@ -314,6 +380,8 @@ flowchart TD
 - `user_preference`：新环境执行[长期画像建表 SQL](docs/智能点餐系统数据库建表语句.md#m2-用户长期画像新表-sql)，已有表先核对结构。
 - 启动时的 `FeedbackDataSeeder` 会在反馈表为空时写入演示评分，相关演示用户与菜品编号需事先存在。
 
+演示菜单另提供 [60 道增量菜品 SQL](docs/data/menu-expansion-2026-11-02.sql) 和 [JSON 数据](docs/data/menu-expansion-2026-11-02.json)，按菜名跳过已有条目，不覆盖原菜品。本机于 2026-11-02 扩充后共 81 道、80 道在售，并已同步 80 条菜单向量；导入方式及核对结果见[菜单数据记录](docs/menu-demo-data.md)。
+
 ### 2. 配置环境变量
 
 | 环境变量 | 用途 |
@@ -324,6 +392,8 @@ flowchart TD
 | `BGE_M3_API_KEY` | 硅基流动 BGE-M3 向量化模型密钥 |
 | `QWEATHER_API_KEY` | 和风天气密钥 |
 | `QWEATHER_BASE_URL` | 和风天气控制台提供的 API Host，包含 `https://` |
+| `ALIYUN_SPEECH_BASE_URL` | 阿里云百炼北京业务空间 API Host，包含 `https://`，不附加接口路径 |
+| `DASHSCOPE_API_KEY` | 同地域百炼 API Key，用于语音识别与合成 |
 | `ADMIN_TOKEN` | 商户接口令牌 |
 
 Windows PowerShell 示例（替换占位符后执行）：
@@ -335,6 +405,8 @@ $env:DEEPSEEK_API_KEY = "<DeepSeek密钥>"
 $env:BGE_M3_API_KEY = "<硅基流动密钥>"
 $env:QWEATHER_API_KEY = "<和风天气密钥>"
 $env:QWEATHER_BASE_URL = "https://<你的和风天气API Host>"
+$env:ALIYUN_SPEECH_BASE_URL = "https://<你的业务空间ID>.cn-beijing.maas.aliyuncs.com"
+$env:DASHSCOPE_API_KEY = "<同地域百炼API Key>"
 $env:ADMIN_TOKEN = "<商户令牌>"
 
 .\mvnw.cmd spring-boot:run
@@ -344,23 +416,28 @@ macOS / Linux 设置相同环境变量后，使用 `./mvnw spring-boot:run` 启�
 
 天气城市与缓存时间配置在 `application.yml` 的 `weather` 下：`city-id` 与 `city-name` 应对应同一门店城市，`cache-ttl-seconds` 当前为 300。现有请求沿用和风天气 V7 接口，供应商接口升级单独安排。
 
+语音模型配置在 `speech.asr` / `speech.tts`，模型和音色需匹配。新环境也需确认云服务已开通、密钥地域与业务空间一致；免费额度和余额以账户控制台为准。浏览器麦克风使用 localhost 或 HTTPS，首版语音接口要求登录。
+
 ### 3. 访问与联调
 
 - 用户端：[http://localhost:8080/user-frontend/index.html](http://localhost:8080/user-frontend/index.html)。默认打开 AI 点餐，导航保留 V1 快捷点餐、菜单和订单。
 - V2 Agent：通过 HTTP 客户端访问 `POST http://localhost:8080/agent/chat` 或 `/agent/chat/stream`，请求格式见上文。
+- 语音输入：登录后在 AI 点餐输入框下点击“语音输入”，允许麦克风，点击“停止并识别”。文字会追加到输入框，检查后手动发送。首版录音最长 60 秒、文件最大 5MiB；支持 WebM/Opus 或 Ogg 的浏览器，需通过 localhost 或 HTTPS 使用。识别期间修改原文时，结果单独保留供手动插入。`POST /speech/recognize` 接收 multipart 字段 `audio`，携带 `X-User-Token`，返回 `data.text`。验证范围见[语音验证记录](docs/m2-speech-verification.md)。
+- 回复朗读：登录后在已完成的回复旁点击“朗读回复”，通过 `POST /speech/synthesize` 使用 `cosyvoice-v3-flash + longanhuan` 合成；首次点击生成，页面内重播复用音频，开始录音时停止朗读。2026-11-03 用户确认真实前后端基础链路联调成功，菜名、金额、份数基本读准，声音与语速舒适；首播等待时间按[语音清单](docs/m2-refinement-todo.md#6-语音输入与自然亲切的朗读)继续优化。
 - 商户原型：[merchant_ui.html](merchant_ui.html) 位于仓库根目录，可本地打开查看；目前未作为 Spring Boot 静态页面发布，也未接入真实商户接口。
 
 ### 4. 运行已有测试
 
-准备好上述依赖与环境变量后，在仓库根目录执行：
+在仓库根目录执行不调用模型或真实业务服务的独立检查：
 
 ```powershell
-.\mvnw.cmd test
-node --test src/test/frontend/agent-client.test.mjs
-node --test src/test/frontend/draft-revision.test.mjs
+.\mvnw.cmd '-Dtest=RecommendationRequestValidationTest,AgentChatStreamSessionTest,AgentChatStreamingControllerTest' test
+node --test src/test/frontend/agent-client.test.mjs src/test/frontend/draft-revision.test.mjs src/test/frontend/order-lookup.test.mjs
 ```
 
-本轮 Java 测试 36 项、前端测试 30 项通过。前端测试使用 Node.js 内置测试工具，无需安装 npm 依赖。容量、天气及报价修改的临时受控检查和真实 HTTP 检查属于单独阶段验收，未计入这 66 项持久测试；详细范围见[容量记录](docs/m2-capacity-verification.md)、[天气记录](docs/m2-weather-verification.md)、[报价修改记录](docs/m2-draft-revision-verification.md)和[收尾记录](docs/m2-closeout-verification.md)。
+发布前独立 Java 检查 35 项通过；另有 `SmartOrderingSystemApplicationTests.contextLoads` 启动检查，本轮未执行，需准备 MySQL、Redis、Qdrant 及对应配置后单独运行。完整 `./mvnw test` 会启动该 Spring 上下文，可能执行演示数据初始化。
+
+前端 45 项单元测试使用 Node.js 内置测试工具。订单核实浏览器回归另有 26 项，需要安装 Playwright 和 Chromium/Edge，可设置 `PLAYWRIGHT_MODULE`、`PLAYWRIGHT_EXECUTABLE_PATH` 后执行 `node src/test/frontend/order-recovery.browser.mjs`；脚本自启本地静态服务，业务请求使用隔离响应。语音、容量、天气和报价等临时检查与真实云端/数据库联调各自记录，不并入这些持久测试计数。
 
 ## 目录结构
 
@@ -379,11 +456,11 @@ smart-ordering-system
 │   ├── entity/                    数据库实体
 │   ├── mapper/                    MyBatis Mapper
 │   ├── model/conversation/        Redis 会话归属及实例元数据
-│   └── service/                   检索推荐、草稿、订单、身份与会话记忆管理
+│   └── service/                   推荐、草稿、订单、身份、会话记忆与语音服务
 ├── src/main/resources
 │   ├── application.yml            服务连接与模型配置
 │   ├── mapper/                    Mapper XML
-│   └── static/user-frontend/      V2 流式聊天与 V1 用户端页面
+│   └── static/user-frontend/      SSE、报价、订单核实、语音模块与 V1 入口
 ├── src/test/                      测试代码
 └── merchant_ui.html               商户界面原型
 ```
@@ -398,6 +475,8 @@ smart-ordering-system
 - [SSE 协议与验证记录](docs/m2-sse-verification.md)
 - [天气工具与 Redis 共享缓存验证记录](docs/m2-weather-verification.md)
 - [报价修改、原子替换与当前报价上下文验证记录](docs/m2-draft-revision-verification.md)
+- [演示菜单增量数据与向量同步记录](docs/menu-demo-data.md)
+- [语音输入与回复朗读验证记录](docs/m2-speech-verification.md)
 - [M2 后续体验打磨待办](docs/m2-refinement-todo.md)
 - [Agent 前端实现、验证与讲解顺序](docs/m2-frontend-verification.md)
 - [业务建模](docs/智能点餐系统业务建模.md)
