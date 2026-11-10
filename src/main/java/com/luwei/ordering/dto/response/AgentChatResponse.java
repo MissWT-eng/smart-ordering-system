@@ -1,5 +1,7 @@
 package com.luwei.ordering.dto.response;
 
+import com.luwei.ordering.model.conversation.MealRequirement;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -18,9 +20,10 @@ public class AgentChatResponse {
     // 本轮实际试算与确认结果，供前端展示和明确确认，不解析模型文本。
     private DraftOrderToolResult draftToolResult;
     private ConfirmOrderToolResult orderToolResult;
+    private MealRequirement mealRequirement;
 
     public AgentChatResponse(String conversationId, String reply,
                              UserPreferenceProposalToolResult proposalToolResult) {
-        this(conversationId, reply, proposalToolResult, null, null);
+        this(conversationId, reply, proposalToolResult, null, null, null);
     }
 }

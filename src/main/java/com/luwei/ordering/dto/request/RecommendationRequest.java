@@ -23,8 +23,7 @@ public class RecommendationRequest {
     //  (可选)用户点餐的人数
     private Integer peopleNum;
 
-    //(可选)用户期望的不同菜品数量，未提供时由service直接决定
-    @Max(value = 5, message = "推荐菜品数量不能超过5个")
+    //(可选)用户期望的不同菜品数量，未提供时由service决定；上限取自 recommendation.result-limit，在服务层校验
     @Min(value = 1, message = "推荐菜品数量不能小于1个")
     private Integer dishCount;
 

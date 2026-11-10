@@ -8,6 +8,8 @@ import com.luwei.ordering.dto.response.DraftOrderToolResult;
 import com.luwei.ordering.dto.response.ConfirmOrderToolResult;
 import com.luwei.ordering.dto.response.UserPreferenceProposalDTO;
 import com.luwei.ordering.dto.response.UserPreferenceProposalToolResult;
+import com.luwei.ordering.model.conversation.MealRequirement;
+import com.luwei.ordering.service.MealRequirementStore;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.invocation.InvocationContext;
@@ -282,11 +284,16 @@ class AgentChatStreamSessionTest {
     }
 
     private static class Fixture {
+        // 本用例不关心需求展示，返回空即可
+        static final MealRequirementStore NO_OP_STORE = new MealRequirementStore() {
+            @Override public MealRequirement get(String conversationId) { return null; }
+            @Override public void merge(String conversationId, MealRequirement partial) { }
+        };
         final RecordingEmitter emitter = new RecordingEmitter();
         final ControlledTokenStream stream = new ControlledTokenStream();
         final AtomicInteger releases = new AtomicInteger();
         final AgentChatStreamSession session = new AgentChatStreamSession(
-                emitter, "conversation-test", releases::incrementAndGet);
+                emitter, "conversation-test", releases::incrementAndGet, NO_OP_STORE);
         void start() { session.start(() -> stream); }
         List<String> eventNames() { return emitter.events.stream().map(Event::name).toList(); }
         Event lastEvent() { return emitter.events.get(emitter.events.size() - 1); }

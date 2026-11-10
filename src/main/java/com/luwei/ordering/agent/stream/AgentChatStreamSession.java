@@ -7,6 +7,9 @@ import com.luwei.ordering.dto.response.ConfirmOrderToolResult;
 import com.luwei.ordering.dto.response.DraftOrderToolResult;
 import com.luwei.ordering.dto.response.UserPreferenceProposalToolResult;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import com.luwei.ordering.model.conversation.MealRequirement;
+import com.luwei.ordering.service.MealRequirementStore;
+
 import dev.langchain4j.service.TokenStream;
 import dev.langchain4j.service.tool.ToolExecution;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +31,6 @@ public final class AgentChatStreamSession {
     private final String conversationId;
     private final Runnable releaseResources;
     private final Object stateLock = new Object();
-
     // 以下状态均在 stateLock 内访问，避免超时与模型回调交叉发送事件。
     private boolean started;
     private boolean connectionClosed;
@@ -36,13 +38,16 @@ public final class AgentChatStreamSession {
     private UserPreferenceProposalToolResult proposalToolResult;
     private DraftOrderToolResult draftToolResult;
     private ConfirmOrderToolResult orderToolResult;
+    private MealRequirementStore mealRequirementStore;
 
     public AgentChatStreamSession(SseEmitter emitter, String conversationId,
-                                  Runnable releaseResources) {
+                                  Runnable releaseResources,
+                                  MealRequirementStore mealRequirementStore) {
         this.emitter = Objects.requireNonNull(emitter);
         this.conversationId = Objects.requireNonNull(conversationId);
         this.releaseResources = Objects.requireNonNull(releaseResources);
-
+        this.mealRequirementStore = mealRequirementStore;
+        
         emitter.onTimeout(this::onConnectionTimeout);
         emitter.onError(error -> onConnectionClosed());
         emitter.onCompletion(this::onConnectionClosed);
@@ -128,7 +133,7 @@ public final class AgentChatStreamSession {
         AgentChatResponse data;
         synchronized (stateLock) {
             data = new AgentChatResponse(conversationId, response.aiMessage().text(),
-                    proposalToolResult, draftToolResult, orderToolResult);
+                    proposalToolResult, draftToolResult, orderToolResult, mealRequirementStore.get(conversationId));
         }
         finish("done", data);
     }

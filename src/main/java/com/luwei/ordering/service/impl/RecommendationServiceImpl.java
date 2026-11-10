@@ -95,6 +95,12 @@ public class RecommendationServiceImpl implements RecommendationService {
             throw new BusinessException(ErrorCode.PARAM_ERROR, message);
         }
 
+        // 数量上限只认配置：注解不能读 yml，写死在注解里改配置会不同步
+        if (request.getDishCount() != null && request.getDishCount() > resultLimit) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR,
+                    "推荐菜品数量不能超过 " + resultLimit + " 个");
+        }
+
         //确定本次推荐的菜品数量,如果用户没指定就用默认值
         int targetCount = request.getDishCount() == null ? resultLimit : request.getDishCount();
 

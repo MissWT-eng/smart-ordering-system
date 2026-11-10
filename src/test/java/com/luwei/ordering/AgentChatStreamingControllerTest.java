@@ -12,6 +12,7 @@ import com.luwei.ordering.dto.response.DraftOrderResponse;
 import com.luwei.ordering.dto.response.OrderDraftSnapshot;
 import com.luwei.ordering.dto.response.UserPreferenceDTO;
 import com.luwei.ordering.service.ConversationService;
+import com.luwei.ordering.service.MealRequirementStore;
 import com.luwei.ordering.service.OrderDraftService;
 import com.luwei.ordering.service.TokenService;
 import com.luwei.ordering.service.UserPreferenceService;
@@ -126,7 +127,7 @@ class AgentChatStreamingControllerTest {
         when(agent.chat(anyString(), any(), anyString(), anyString(), anyString())).thenReturn(
                 Result.<String>builder().content("sync reply").toolExecutions(List.of()).build());
         AgentChatController controller = new AgentChatController(agent, request, tokens, conversations,
-                memory, profiles, json, drafts, limiter);
+                memory, profiles, json, drafts, limiter, mock(MealRequirementStore.class));
         mvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }

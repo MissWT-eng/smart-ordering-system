@@ -5,12 +5,14 @@ import com.luwei.ordering.common.exception.BusinessException;
 import com.luwei.ordering.common.exception.ErrorCode;
 import com.luwei.ordering.dto.request.DraftOrderRequest;
 import com.luwei.ordering.dto.request.RecommendationRequest;
+import com.luwei.ordering.model.conversation.MealRequirement;
 import com.luwei.ordering.common.enums.Category;
 import com.luwei.ordering.dto.response.*;
 import com.luwei.ordering.service.DishService;
 import com.luwei.ordering.service.OrderDraftService;
 import com.luwei.ordering.service.RecommendationService;
 import com.luwei.ordering.service.WeatherService;
+import com.luwei.ordering.service.MealRequirementStore;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.invocation.InvocationParameters;
@@ -33,6 +35,7 @@ public class DishTools {
     private final OrderDraftService orderDraftService;
     private final Validator validator;
     private final WeatherService weatherService;
+    private final MealRequirementStore mealRequirementStore;
 
     @Tool("查询在售菜品，可按分类筛选：meat=荤菜，vegetable=素菜，drink=饮品，soup=汤")
     public String queryMenu(
@@ -128,6 +131,9 @@ public class DishTools {
             );
         }
 
+        mealRequirementStore.merge(parameters.get("conversationId"), 
+                                   new MealRequirement(peopleNum, dishCount, preference, budget)
+                                   );
 
         List<RecommendedDishDTO> dishes = resp.getDishes();
         if (dishes == null || dishes.isEmpty()) {
@@ -234,7 +240,10 @@ public class DishTools {
             }
             throw e;
         }
-
+                                   
+        mealRequirementStore.merge(parameters.get("conversationId"), 
+                                   new MealRequirement(null,null, null, req.getBudget())
+                                   );
         if(! Boolean.TRUE.equals(response.getOverBudget())){
             return new DraftOrderToolResult(
                     snapshot.getDraftId(),

@@ -42,6 +42,7 @@ public class AgentChatController {
     private final ObjectMapper objectMapper;
     private final OrderDraftService orderDraftService;
     private final AgentChatConcurrencyLimiter concurrencyLimiter;
+    private final MealRequirementStore mealRequirementStore;
 
     @PostMapping("/chat")
     public ApiResponse<AgentChatResponse> chat(@RequestBody @Valid AgentChatRequest req){
@@ -106,7 +107,7 @@ public class AgentChatController {
         try {
             String conversationId = conversationService.resolveConversationId(
                     req.getConversationId(), ownerKey);
-
+            parameters.put("conversationId", conversationId);
 
             conversationMemoryService.beginUse(conversationId);
 
@@ -147,7 +148,8 @@ public class AgentChatController {
                 return ApiResponse.success(
                         new AgentChatResponse(conversationId,
                                 result.content(),
-                                preferenceProposal, draftResult, orderResult
+                                preferenceProposal, draftResult, orderResult,
+                                mealRequirementStore.get(conversationId)
                         ));
 
             } catch (Exception e) {
@@ -252,6 +254,7 @@ public class AgentChatController {
         try {
             conversationId = conversationService.resolveConversationId(
                     req.getConversationId(), ownerKey);
+            parameters.put("conversationId", conversationId);
 
             conversationMemoryService.beginUse(conversationId);
 
@@ -271,7 +274,9 @@ public class AgentChatController {
                     //标识本次使用的对话聊天
                     conversationId,
                     //任务结束的时候，执行资源归还
-                    () -> releaseStreamResources(conversationId, resourcesReleased));
+                    () -> releaseStreamResources(conversationId, resourcesReleased),
+                    mealRequirementStore
+                );
             //启动session，返回emitter
             session.start(() -> orderingAgent.chatStream(
                     req.getMessage(), parameters, profileContext, currentDraftSnapshot, conversationId));
