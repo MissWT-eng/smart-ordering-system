@@ -72,6 +72,9 @@
     <select id="findAvailableAll" resultType="com.luwei.ordering.entity.DishEntity">
         SELECT dish_number, dish_name, dish_status, dish_introduction, price, category, spicy_level
         FROM dish WHERE dish_status = 'available'
+        <if test="category != null and category != ''">
+            AND category = #{category}
+        </if>
     </select>
 
     <select id="findByIds" resultType="com.luwei.ordering.entity.DishEntity">

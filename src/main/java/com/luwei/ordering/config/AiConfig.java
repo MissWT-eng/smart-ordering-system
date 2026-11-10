@@ -2,6 +2,7 @@ package com.luwei.ordering.config;
 
 import com.luwei.ordering.agent.OrderingAgent;
 import com.luwei.ordering.agent.tool.DishTools;
+import com.luwei.ordering.agent.tool.OrderTools;
 import com.luwei.ordering.service.QueryAnalyzer;
 import com.luwei.ordering.service.RecommendationAssistant;
 import dev.langchain4j.data.segment.TextSegment;
@@ -44,12 +45,13 @@ public class AiConfig {
     public OrderingAgent orderingAgent(
             ChatModel chatModel,
             StreamingChatModel streamingChatModel,
-            DishTools dishTools) {
+            DishTools dishTools,
+            OrderTools orderTools) {
 
         return AiServices.builder(OrderingAgent.class)
                 .chatModel(chatModel)
                 .streamingChatModel(streamingChatModel)
-                .tools(dishTools)
+                .tools(dishTools, orderTools)
                 .chatMemoryProvider(memoryId ->
                         MessageWindowChatMemory.builder()
                                 .id(memoryId)

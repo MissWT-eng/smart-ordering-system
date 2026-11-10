@@ -50,7 +50,7 @@ public interface DishMapper {
     /**
      *  获取当前所有上架的菜品
      */
-    List<DishEntity> findAvailableAll();
+    List<DishEntity> findAvailableAll(@Param("category") String category);
 
     /**
      *  根据dishNumber获取当前上架的菜品

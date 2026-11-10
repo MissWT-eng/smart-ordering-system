@@ -5,6 +5,7 @@ import com.luwei.ordering.common.exception.BusinessException;
 import com.luwei.ordering.common.exception.ErrorCode;
 import com.luwei.ordering.dto.request.DraftOrderRequest;
 import com.luwei.ordering.dto.request.RecommendationRequest;
+import com.luwei.ordering.common.enums.Category;
 import com.luwei.ordering.dto.response.*;
 import com.luwei.ordering.service.DishService;
 import com.luwei.ordering.service.OrderDraftService;
@@ -19,7 +20,10 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
+import java.math.RoundingMode;
+
 
 @Component
 @RequiredArgsConstructor
@@ -30,20 +34,34 @@ public class DishTools {
     private final Validator validator;
     private final WeatherService weatherService;
 
-    @Tool("查询菜单:返回当前所有在售菜品(名称、价格、分类、简介)，用于帮顾客点餐")
-    public String queryMenu() {
-        List<DishListItemDTO> dishes = dishService.listAvailableDishes();
-        if (dishes.isEmpty()) {
-            return "当前暂无可点菜品。";
+    @Tool("查询在售菜品，可按分类筛选：meat=荤菜，vegetable=素菜，drink=饮品，soup=汤")
+    public String queryMenu(
+        @P(value = "菜品分类，可选 meat/vegetable/drink/soup；不确定时留空", required = false) String category
+    ) 
+    {
+        Category parsed = null;
+        if(category != null && !category.isBlank()){
+            try {
+                parsed = Category.fromCode(category);
+            } catch (Exception e) {
+                return "菜品分类参数不合法，请使用 meat/vegetable/drink/soup 或留空。";
+            }
         }
+
+        List<DishListItemDTO> dishes = dishService.listAvailableDishes(parsed);
+        if (dishes.isEmpty()) {
+            return parsed == null
+                    ? "当前暂无可点菜品。"
+                    : "该分类下暂时没有在售菜品，可以看看其他分类。";
+        }
+
         StringBuilder sb = new StringBuilder();
         for (DishListItemDTO d : dishes) {
             sb.append("- ").append(d.getDishName())
-                           .append("(")
-                           .append("菜品编号:")
-                           .append(d.getDishNumber())
-                           .append(d.getCategory())
-                           .append(",RMB:").append(d.getPrice()).append("):")
+                           .append("（菜品编号:").append(d.getDishNumber())
+                           .append("，分类:").append(d.getCategory() == null ? "未知" : d.getCategory().getCode())
+                           .append("，单价:RMB ").append(d.getPrice())
+                           .append("）：")
                            .append(d.getDishIntroduction()).append("\n");
         }
         return sb.toString();
@@ -54,6 +72,7 @@ public class DishTools {
             @P(value = "顾客口味/场景偏好，如『清淡下饭』『来点辣的』", required = true) String preference,
             @P(value = "用餐人数", required = false) Integer peopleNum,
             @P(value = "预算上限（元）", required = false) BigDecimal budget,
+            @P(value = "顾客期望的不同菜品数量(道)，不是人数或每道菜的份数，顾客未指定时留空", required = false) Integer dishCount,
             InvocationParameters parameters) {
 
         // 兜底：preference 是唯一的必填,空了直接给第一层的LLM返回结果
@@ -63,7 +82,9 @@ public class DishTools {
                     RecommendationToolResult.Status.INVALID_ARGUMENTS,
                     List.of(),
                     "偏好不能为空",
-                    "重新询问顾客: 想吃什么口味或场景（比如『清淡下饭』『下酒菜』）");
+                    "重新询问顾客: 想吃什么口味或场景（比如『清淡下饭』『下酒菜』）",
+                    null,
+                null);
 
         }
 
@@ -75,6 +96,7 @@ public class DishTools {
         req.setPeopleNum(peopleNum);
         req.setBudget(budget);
         req.setUserId(userId);
+        req.setDishCount(dishCount);
         RecommendationResponse resp;
 
         try {
@@ -87,7 +109,9 @@ public class DishTools {
                         List.of(),
                         e.getMessage(),
                         "说明推荐服务暂时不可用，保留用户原要求，结束本轮推荐；"
-                                + "不要自动放宽条件或更换工具绕过失败。"
+                                + "不要自动放宽条件或更换工具绕过失败。",
+                                null,
+                                null
                 );
             }
             if (e.getErrorCode() != ErrorCode.PARAM_ERROR) {
@@ -98,7 +122,9 @@ public class DishTools {
                     List.of(),
                     "推荐参数不合法：" + e.getMessage(),
                      "请依据顾客原话修正参数；"
-                            + "信息不明确时先询问顾客，不要擅自放宽预算。"
+                            + "信息不明确时先询问顾客，不要擅自放宽预算。",
+                            null,
+                            null
             );
         }
 
@@ -111,19 +137,52 @@ public class DishTools {
                     resp.getSummary() != null
                             ? resp.getSummary()
                             :"暂时没有匹配到合适的菜品",
-                    "告知顾客，并询问是否调整需求；不自行放宽约束"
+                    "告知顾客，并询问是否调整需求；不自行放宽约束",
+                    resp.getTargetCount(),
+                    null
             );
 
+        }
+
+        BigDecimal unitPriceSum = dishes.stream()
+                .map(RecommendedDishDTO::dish)
+                .filter(Objects::nonNull)
+                .map(DishListItemDTO::getPrice)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        
+        int actualCount = dishes.size();
+        String countHint;
+
+        if(dishCount == null){
+            //顾客没提数量
+            countHint = "本次返回 " + actualCount + " 道菜品，不要声称这是顾客要求的数量。";
+        }
+        else if(actualCount < dishCount){
+            //顾客提了数量，但实际推荐数量不够
+            countHint = "顾客要求 " + dishCount + " 道。本次检索并筛选后得到 " + actualCount + " 道。"
+            +"必须如实告知只能提供 " + actualCount + " 道，不要补足或编造，也不要说已经满足顾客要求的数量。";
+        }
+        else {
+            //顾客提了数量，实际推荐数量满足要求
+            countHint = "顾客要求 " + dishCount + " 道，本次返回 " + actualCount + " 道，数量已满足顾客要求。";
         }
 
         return new RecommendationToolResult(
                 RecommendationToolResult.Status.SUCCESS,
                 resp.getDishes(),
                 resp.getSummary(),
-                "只展示候选菜品、单价和推荐理由，询问顾客选择和数量；"
-                        + "不汇总组合金额，不提供估算总价、剩余预算或整单是否在预算内的结论。"
+                countHint + "只展示候选菜品、单价和推荐理由，询问顾客选择和数量；"
+                        + "金额只能引用工具返回的数字，不得自行计算或估算合计、总价、剩余预算及是否超预算；"
+                        + "顾客给出预算时，说明是否在预算内需要按菜品和份数试算确认。"
                         + "需要组合报价时，先明确菜品及各自数量，再调用 draftOrder，以真实试算结果为准；"
-                        + "顾客要求只推荐、不试算时，不调用 draftOrder、不生成草稿，也不提供组合金额。尚未创建订单。"
+                        + "顾客要求只推荐、不试算时，不调用 draftOrder、不生成草稿，也不自行给出组合金额。尚未创建订单。"
+                        + "工具返回的 unitPriceSum 是候选菜品各一份的单价合计，不含份数，也不是订单金额；"
+                        + "只有顾客给出预算时才可引用，引用时必须说明「按每道一份估算」，实际金额以 draftOrder 试算为准。",
+                        resp.getTargetCount(),
+                        unitPriceSum
         );
     }
 

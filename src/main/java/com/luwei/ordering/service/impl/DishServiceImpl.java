@@ -11,6 +11,7 @@ import com.luwei.ordering.dto.request.DishUpdateRequest;
 import com.luwei.ordering.dto.response.DishListItemDTO;
 import com.luwei.ordering.dto.response.PageResult;
 import com.luwei.ordering.entity.DishEntity;
+import com.luwei.ordering.common.enums.Category;
 import com.luwei.ordering.mapper.DishMapper;
 import com.luwei.ordering.service.DishService;
 import com.luwei.ordering.service.DishVectorService;
@@ -148,11 +149,10 @@ public class DishServiceImpl implements DishService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<DishListItemDTO> listAvailableDishes() {
-        return dishMapper.findAvailableAll().stream()
+    public List<DishListItemDTO> listAvailableDishes(Category category) {
+        String categoryStr = category == null ? null : category.getCode();
+        return dishMapper.findAvailableAll(categoryStr).stream()
                 .map(dishConverter::toListItemDTO)
                 .toList();
     }
-
-
 }

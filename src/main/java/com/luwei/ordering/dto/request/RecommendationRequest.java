@@ -23,6 +23,11 @@ public class RecommendationRequest {
     //  (可选)用户点餐的人数
     private Integer peopleNum;
 
+    //(可选)用户期望的不同菜品数量，未提供时由service直接决定
+    @Max(value = 5, message = "推荐菜品数量不能超过5个")
+    @Min(value = 1, message = "推荐菜品数量不能小于1个")
+    private Integer dishCount;
+
     @Min(value = 0, message = "预算不能小于0元")
     //  (可选)用户的预算金额
     private BigDecimal budget;

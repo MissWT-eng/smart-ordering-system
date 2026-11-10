@@ -1,7 +1,6 @@
 package com.luwei.ordering.service.impl;
 
 import com.luwei.ordering.common.enums.DishStatus;
-import com.luwei.ordering.common.enums.OrderStatus;
 import com.luwei.ordering.common.enums.UserStatus;
 import com.luwei.ordering.common.exception.BusinessException;
 import com.luwei.ordering.common.exception.ErrorCode;
@@ -96,6 +95,9 @@ public class RecommendationServiceImpl implements RecommendationService {
             throw new BusinessException(ErrorCode.PARAM_ERROR, message);
         }
 
+        //确定本次推荐的菜品数量,如果用户没指定就用默认值
+        int targetCount = request.getDishCount() == null ? resultLimit : request.getDishCount();
+
         //要是游客直接往下走
         if(request.getUserId() != null){
             if (token == null) throw new BusinessException(ErrorCode.NOT_AUTH);//没带凭证
@@ -145,7 +147,7 @@ public class RecommendationServiceImpl implements RecommendationService {
 
         //再做一次校验，防止没有有通过条件的菜品
         if(dishNumbers.isEmpty()){
-            return new RecommendationResponse(List.of(), "抱歉，暂时没有匹配到合适的菜品，换个口味描述试试？");
+            return new RecommendationResponse(List.of(), "抱歉，暂时没有匹配到合适的菜品，换个口味描述试试？", targetCount);
         }
 
         //保留向量分数
@@ -168,7 +170,8 @@ public class RecommendationServiceImpl implements RecommendationService {
         if (dishEntities.isEmpty()) {
             return new RecommendationResponse(
                     List.of(),
-                    "暂时没有找到符合当前要求的菜品，您是否愿意调整条件？"
+                    "暂时没有找到符合当前要求的菜品，您是否愿意调整条件？",
+                     targetCount
             );
         }
 
@@ -208,13 +211,13 @@ public class RecommendationServiceImpl implements RecommendationService {
                     kept.add(dish);
                 }
             }
-            if(kept.isEmpty()) return new RecommendationResponse(List.of(),"本次未找到符合当前预算的候选菜品，是否愿意调整需求？");
+            if(kept.isEmpty()) return new RecommendationResponse(List.of(),"本次未找到符合当前预算的候选菜品，是否愿意调整需求？", targetCount);
             dishEntities = kept;
         }
 
         //截取并生成最终的finalCandidateIds
         dishEntities = dishEntities.stream()
-                .limit(resultLimit)
+                .limit(targetCount)
                 .toList();
 
         Set<Long> finalCandidateIds = dishEntities.stream()
@@ -314,7 +317,7 @@ public class RecommendationServiceImpl implements RecommendationService {
                 log.error("推荐记录落库失败, userId:{}", request.getUserId(), e);
             }
         }
-        return new RecommendationResponse(dishes , result == null ? null : result.summary());
+        return new RecommendationResponse(dishes , result == null ? null : result.summary(), targetCount);
     }
 
     @Override

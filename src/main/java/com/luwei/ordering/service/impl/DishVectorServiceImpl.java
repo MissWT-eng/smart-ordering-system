@@ -61,7 +61,7 @@ public class DishVectorServiceImpl implements DishVectorService {
     @Override
     public void resyncDish() {
         //数据库中取出所有上架的菜品
-        List<DishEntity> entities = dishMapper.findAvailableAll();
+        List<DishEntity> entities = dishMapper.findAvailableAll(null);
         //清空向量库
         embeddingStore.removeAll();
         //把传入的entity对象全部转为textSegment，逐个组装
