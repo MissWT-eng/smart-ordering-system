@@ -13,6 +13,7 @@ import com.luwei.ordering.dto.request.RecommendationRequest;
 import com.luwei.ordering.dto.response.*;
 import com.luwei.ordering.entity.*;
 import com.luwei.ordering.mapper.DishMapper;
+import com.luwei.ordering.mapper.DishRecallMapper;
 import com.luwei.ordering.mapper.RecommendationLogMapper;
 import com.luwei.ordering.mapper.UserMapper;
 import com.luwei.ordering.service.*;
@@ -28,6 +29,7 @@ import tools.jackson.databind.ObjectMapper;
 
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -53,12 +55,6 @@ public class RecommendationServiceImpl implements RecommendationService {
     private final ObjectMapper objectMapper;
     //抽取用户preference，做粗筛
     private final QueryAnalyzer analyzer;
-    //向量相似度权重
-    @Value("${rerank.alpha:0.6}")
-    private double alpha;
-    //历史偏好权重
-    @Value("${rerank.beta:0.4}")
-    private double beta;
     //获取用户历史反馈
     private final FeedbackService feedbackService;
     //获取当前天气状况
@@ -69,6 +65,8 @@ public class RecommendationServiceImpl implements RecommendationService {
     private final Validator validator;
     //做菜品的筛选和定量确认
     private final MealComposer mealComposer;
+    //获取热门菜品和当前用户历史点餐次数
+    private final DishRecallMapper dishRecallMapper;
 
     //菜品召回数量
     @Value("${recommendation.recall-limit}")
@@ -76,6 +74,20 @@ public class RecommendationServiceImpl implements RecommendationService {
     @Value("${recommendation.result-limit}")
     private int resultLimit;
 
+    //热度召回限制和天数限制
+    @Value ("${recommendation.hot-days}")
+    private int hotDays;
+    @Value ("${recommendation.hot-limit}")
+    private int hotLimit;
+    
+    //权重配置(当前三路召回)
+    @Value ("${recommendation.weights.hot}")
+    private double hot;
+    @Value ("${recommendation.weights.personal}")
+    private double personal;
+    @Value ("${recommendation.weights.semantic}")
+    private double semantic;
+    
     @PostConstruct
     private void validateRecommendationLimits(){
         if(!(recallLimit > 0) || !(resultLimit > 0)){
@@ -150,14 +162,26 @@ public class RecommendationServiceImpl implements RecommendationService {
 
         //调用dishVector的方法，向量化preference进行top5的检索
         List<DishMatch> dishMatches = dishVectorService.searchDishes(request.getPreference(), recallLimit, condition);
-
         //取序号，按相似度降级取
+        //第二版，三路召回
         List<Long> dishNumbers = dishMatches.stream()
                                             .map(DishMatch::dishNumber)
                                             .toList();
+        List<DishHit> hotHits = dishRecallMapper.findHotDishCounts(LocalDateTime.now().minusDays(hotDays), hotLimit);
+        Set<Long> sumDishNumbers = new LinkedHashSet<>();
+        sumDishNumbers.addAll(dishNumbers);
+        sumDishNumbers.addAll(hotHits.stream().map(DishHit::dishNumber).toList());
+
+        //不是游客再添加对应的点餐记录
+        List<DishHit> personalHits = List.of();
+        if(request.getUserId() != null){
+        personalHits = dishRecallMapper.findUserDishCounts(request.getUserId(), hotLimit);
+        sumDishNumbers.addAll(personalHits.stream().map(DishHit::dishNumber).toList());
+        }
+        
 
         //再做一次校验，防止没有有通过条件的菜品
-        if(dishNumbers.isEmpty()){
+        if(sumDishNumbers.isEmpty()){
             return new RecommendationResponse(List.of(), "抱歉，暂时没有匹配到合适的菜品，换个口味描述试试？", targetCount);
         }
 
@@ -166,16 +190,15 @@ public class RecommendationServiceImpl implements RecommendationService {
                                          .collect(Collectors.toMap(DishMatch :: dishNumber , DishMatch :: score));
 
         //反查+过滤，建一个[编号 -> 实体]的查询表
-        Map<Long , DishEntity> availableMap = dishMapper.findByIds(dishNumbers).stream()
+        Map<Long , DishEntity> availableMap = dishMapper.findByIds(new ArrayList<>(sumDishNumbers)).stream()
                                                     .filter(dish -> dish.getDishStatus() == DishStatus.AVAILABLE)
                                                     .collect(Collectors.toMap(DishEntity::getDishNumber , d -> d));
 
         //按照检索顺序从中逐个取回
-        List<DishEntity> dishEntities = dishMatches.stream()
-                                                    .map(m -> availableMap
-                                                    .get(m.dishNumber()))
-                                                    .filter(Objects::nonNull)
-                                                    .toList();
+        List<DishEntity> dishEntities = sumDishNumbers.stream()
+                                                      .map(availableMap::get)
+                                                      .filter(Objects::nonNull)
+                                                      .toList();
 
         //这个检验主要是为了防止向量库中检索出已下架的菜品被推荐
         if (dishEntities.isEmpty()) {
@@ -192,11 +215,25 @@ public class RecommendationServiceImpl implements RecommendationService {
                                      ? feedbackService.getAffinityByDish(request.getUserId())
                                      : Map.of();
 
+        //先拼接一个hotMap
+        int hotMaxCnt = hotHits.stream().mapToInt(DishHit::cnt).max().orElse(0);
+        Map<Long, Double> hotMap = hotMaxCnt == 0 ? Map.of() : hotHits.stream()
+                                                            .collect(Collectors.toMap(DishHit::dishNumber,
+                                                             h -> h.cnt() / (double) hotMaxCnt));
+        //再拼接一个personalMap
+        int personalMaxCnt = personalHits.stream().mapToInt(DishHit::cnt).max().orElse(0);
+        Map<Long, Double> personalMap = personalMaxCnt == 0 ? Map.of() : personalHits.stream()
+                                                            .collect(Collectors.toMap(DishHit::dishNumber,
+                                                             p -> p.cnt() / (double) personalMaxCnt));                                                 
+
         //在这里做一个重排，重排一下dishEntities,线性加权，权重自己定
+        //第二版三路召回权重修改了
         dishEntities = dishEntities.stream()
                                    .sorted(Comparator.comparingDouble(
-                                        (DishEntity d) -> alpha * vectorScore.getOrDefault(d.getDishNumber(), 0.0)
-                                        + beta * affinity.getOrDefault(d.getDishNumber(), 0.0))
+                                        (DishEntity d) -> (semantic * vectorScore.getOrDefault(d.getDishNumber(), 0.0))
+                                                          + personal * ((affinity.getOrDefault(d.getDishNumber(), 0.0)) + personalMap.getOrDefault(d.getDishNumber(), 0.0))
+                                                          + (hot * hotMap.getOrDefault(d.getDishNumber(), 0.0))
+                                                        )
                         .reversed())
                         .toList();
 

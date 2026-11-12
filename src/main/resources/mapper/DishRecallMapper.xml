@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.luwei.ordering.mapper.DishRecallMapper">
+
+    <!-- 热销：近 N 天被点次数最多的菜品 -->
+    <select id="findHotDishCounts" resultType="com.luwei.ordering.dto.response.DishHit">
+        SELECT oi.dish_number AS dishNumber,
+               COUNT(*)       AS cnt
+        FROM order_item oi
+                 JOIN orders o ON oi.order_num = o.order_num
+        WHERE o.order_time &gt;= #{since}
+        GROUP BY oi.dish_number
+        ORDER BY cnt DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 复购：某位注册用户点过的菜品及次数 -->
+    <select id="findUserDishCounts" resultType="com.luwei.ordering.dto.response.DishHit">
+        SELECT oi.dish_number AS dishNumber,
+               COUNT(*)       AS cnt
+        FROM order_item oi
+                 JOIN orders o ON oi.order_num = o.order_num
+        WHERE o.order_user_id = #{userId}
+        GROUP BY oi.dish_number
+        ORDER BY cnt DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

@@ -70,6 +70,12 @@ rerank:
 recommendation:
   recall-limit: 20
   result-limit: 5
+  hot-days: 30
+  hot-limit: 10
+  weights:
+    semantic: 0.55
+    personal: 0.35
+    hot: 0.10
 
 weather:
   api-key: ${QWEATHER_API_KEY}
