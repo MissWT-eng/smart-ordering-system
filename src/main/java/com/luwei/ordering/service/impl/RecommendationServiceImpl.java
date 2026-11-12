@@ -16,6 +16,8 @@ import com.luwei.ordering.mapper.DishMapper;
 import com.luwei.ordering.mapper.RecommendationLogMapper;
 import com.luwei.ordering.mapper.UserMapper;
 import com.luwei.ordering.service.*;
+import com.luwei.ordering.service.composer.MealComposer;
+
 import jakarta.annotation.PostConstruct;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
@@ -65,6 +67,9 @@ public class RecommendationServiceImpl implements RecommendationService {
     private final TokenService tokenService;
     //去做request中的参数校验
     private final Validator validator;
+    //做菜品的筛选和定量确认
+    private final MealComposer mealComposer;
+
     //菜品召回数量
     @Value("${recommendation.recall-limit}")
     private int recallLimit;
@@ -222,9 +227,12 @@ public class RecommendationServiceImpl implements RecommendationService {
         }
 
         //截取并生成最终的finalCandidateIds
-        dishEntities = dishEntities.stream()
-                .limit(targetCount)
-                .toList();
+        dishEntities = mealComposer.compose(dishEntities, budget, targetCount);
+        if (dishEntities.isEmpty()) {
+            return new RecommendationResponse(List.of(),
+                    "当前预算下没有搭配出合适的组合，是否调整预算或口味？", targetCount);
+        }
+
 
         Set<Long> finalCandidateIds = dishEntities.stream()
                 .map(DishEntity::getDishNumber)

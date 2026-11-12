@@ -37,6 +37,9 @@ public class DishTools {
     private final WeatherService weatherService;
     private final MealRequirementStore mealRequirementStore;
 
+    // 单次菜单输出上限：菜品增多后全量塞进上下文会挤占模型窗口，超出时提示按分类查询
+    private static final int MAX_MENU_ITEMS = 120;
+
     @Tool("查询在售菜品，可按分类筛选：meat=荤菜，vegetable=素菜，drink=饮品，soup=汤")
     public String queryMenu(
         @P(value = "菜品分类，可选 meat/vegetable/drink/soup；不确定时留空", required = false) String category
@@ -58,6 +61,13 @@ public class DishTools {
                     : "该分类下暂时没有在售菜品，可以看看其他分类。";
         }
 
+        String notice = "";
+        if (dishes.size() > MAX_MENU_ITEMS) {
+            notice = "在售菜品共 " + dishes.size() + " 道，以下只列出前 " + MAX_MENU_ITEMS
+                    + " 道；需要完整菜单请按分类查询（meat/vegetable/drink/soup）。\n";
+            dishes = dishes.subList(0, MAX_MENU_ITEMS);
+        }
+
         StringBuilder sb = new StringBuilder();
         for (DishListItemDTO d : dishes) {
             sb.append("- ").append(d.getDishName())
@@ -67,7 +77,7 @@ public class DishTools {
                            .append("）：")
                            .append(d.getDishIntroduction()).append("\n");
         }
-        return sb.toString();
+        return notice + sb;
     }
 
     @Tool("推荐候选菜品:根据顾客口味偏好、人数、预算调用后端推荐引擎，返回候选菜品、单价及理由，不提供组合报价")
@@ -158,18 +168,25 @@ public class DishTools {
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2, RoundingMode.HALF_UP);
 
-        
-        int actualCount = dishes.size();
+        // 饮品不算"菜"：配餐会额外附一杯饮，直接数 length 会让"要 5 道"变成"返回 6 道"
+        int dishOnlyCount = (int) dishes.stream()
+        .filter(d -> d.dish() != null && d.dish().getCategory() != Category.DRINK)
+        .count();
+
+        int actualCount = dishOnlyCount > 0? dishOnlyCount : dishes.size();
         String countHint;
 
         if(dishCount == null){
             //顾客没提数量
             countHint = "本次返回 " + actualCount + " 道菜品，不要声称这是顾客要求的数量。";
         }
-        else if(actualCount < dishCount){
-            //顾客提了数量，但实际推荐数量不够
-            countHint = "顾客要求 " + dishCount + " 道。本次检索并筛选后得到 " + actualCount + " 道。"
-            +"必须如实告知只能提供 " + actualCount + " 道，不要补足或编造，也不要说已经满足顾客要求的数量。";
+        else if (actualCount < dishCount) {
+            String reason = budget == null
+                    ? "符合该口味的菜品数量不足"
+                    : "预算 " + budget + " 元配不出 " + dishCount + " 道";
+            countHint = "顾客要求 " + dishCount + " 道，本次只能提供 " + actualCount + " 道（"
+                    + reason + "）。必须如实说明，并建议顾客减少道数或放宽预算，"
+                    + "不要补足、编造，也不要说已经满足顾客要求的数量。";
         }
         else {
             //顾客提了数量，实际推荐数量满足要求
