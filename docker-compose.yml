@@ -1,0 +1,107 @@
+services:
+
+  mysql:
+    image: mysql:8.0
+    container_name: ordering-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: smart_ordering
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      # 数据持久化：容器删了数据还在
+      - mysql-data:/var/lib/mysql
+      # 首次启动（数据卷为空时）自动执行初始化脚本
+      - ./deploy/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    # 只绑本机回环，外网连不到，调试时用 ssh
+    ports:
+      - "127.0.0.1:3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    container_name: ordering-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "2"
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: ordering-qdrant
+    restart: always
+    volumes:
+      - qdrant-data:/qdrant/storage
+    ports:
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "2"
+
+  app:
+    build: .
+    container_name: ordering-app
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+    environment:
+      # 容器之间用服务名互访，不是 localhost
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/smart_ordering?serverTimezone=Asia/Shanghai&characterEncoding=utf8
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6334
+
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      BGE_M3_API_KEY: ${BGE_M3_API_KEY}
+      QWEATHER_API_KEY: ${QWEATHER_API_KEY}
+      QWEATHER_BASE_URL: ${QWEATHER_BASE_URL}
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+      ALIYUN_SPEECH_BASE_URL: ${ALIYUN_SPEECH_BASE_URL:-}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+
+      TZ: Asia/Shanghai
+      # 线上用 info，避免 debug 日志刷屏
+      LOGGING_LEVEL_COM_LUWEI_ORDERING: info
+    ports:
+      - "8080:8080"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+volumes:
+  mysql-data:
+  redis-data:
+  qdrant-data:

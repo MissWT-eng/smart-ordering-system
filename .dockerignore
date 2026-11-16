@@ -1,0 +1,18 @@
+.git
+.gitignore
+.vscode
+docs
+*.md
+deploy
+.env
+docker-compose.yml
+Dockerfile
+
+# target 只保留打好的 jar，其余不进构建上下文
+target/classes
+target/test-classes
+target/surefire-reports
+target/generated-sources
+target/generated-test-sources
+target/maven-status
+target/*.jar.original
