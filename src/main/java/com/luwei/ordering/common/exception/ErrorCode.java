@@ -27,7 +27,7 @@ public enum ErrorCode {
     ILLEGAL_QUANTITY(400, "菜品数量不合法"),
     CANT_TRANSITION_TO(409,"订单状态不允许改变"),
     NOT_AUTH(401, "未授权用户"),
-    LLM_SERVICE_UNAVAILABLE(504, "当前调用超时"),
+    LLM_SERVICE_UNAVAILABLE(504, "推荐服务暂时不可用，请稍后再试"),
     AGENT_BUSY(503,"当前聊天请求过多，请稍后重试"),
     SPEECH_SYNTHESIS_UNAVAILABLE(503, "语音合成服务暂不可用"),
     WEATHER_SERVICE_UNAVAILABLE(504, "当前调用异常"),
