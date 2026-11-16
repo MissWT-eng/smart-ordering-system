@@ -311,20 +311,57 @@ $("#preferenceInput").addEventListener("input", refreshTagActive);
  * @param reason     推荐理由（仅推荐接口有）
  * @param primary    是否主推（仅推荐接口有）
  * ========================================================= */
-function renderDishCard(dish, reason, primary) {
+function menuDishArtwork(category, dishNumber) {
+  const variant = Math.abs(Number(dishNumber) || 0) % 3;
+  const commonStart = `<svg class="dish-illustration variant-${variant}" viewBox="0 0 240 150" fill="none" aria-hidden="true"><ellipse class="art-shadow" cx="120" cy="119" rx="69" ry="12"/>`;
+  const commonEnd = `</svg>`;
+  if (category === "meat") return commonStart + `
+    <ellipse class="art-plate" cx="120" cy="86" rx="72" ry="38"/>
+    <ellipse class="art-plate-well" cx="120" cy="82" rx="59" ry="29"/>
+    <g class="art-food"><rect x="76" y="66" width="37" height="26" rx="9" transform="rotate(-12 76 66)"/><rect x="119" y="57" width="40" height="28" rx="10" transform="rotate(13 119 57)"/><rect x="126" y="87" width="38" height="24" rx="9" transform="rotate(-8 126 87)"/><rect x="87" y="91" width="34" height="22" rx="8" transform="rotate(9 87 91)"/></g>
+    <g class="art-garnish"><path d="M76 76c9-13 20-11 23-2-9 7-17 8-23 2Z"/><path d="M153 56c10-9 20-5 20 4-10 4-17 2-20-4Z"/><circle cx="164" cy="91" r="4"/><circle cx="78" cy="94" r="3"/></g>
+    <path class="art-detail" d="m96 75 8 5m32-8 10 5m-42 23 8 3m28-6 9 4"/>` + commonEnd;
+  if (category === "vegetable") return commonStart + `
+    <ellipse class="art-plate" cx="120" cy="88" rx="72" ry="37"/>
+    <ellipse class="art-plate-well" cx="120" cy="84" rx="59" ry="28"/>
+    <g class="art-food"><path d="M111 97C75 95 73 65 94 57c22 6 28 21 17 40Z"/><path d="M122 97c-5-30 14-47 34-38 6 22-5 36-34 38Z"/><path d="M108 99c-20-17-13-37 5-40 17 12 17 26-5 40Z"/></g>
+    <path class="art-stem" d="M91 66c15 8 24 19 30 34m29-33c-16 8-25 18-30 33"/>
+    <g class="art-garnish"><circle cx="88" cy="91" r="5"/><circle cx="150" cy="93" r="6"/><circle cx="132" cy="60" r="4"/></g>` + commonEnd;
+  if (category === "soup") return commonStart + `
+    <path class="art-bowl" d="M58 70h124c-5 38-25 55-62 55S63 108 58 70Z"/>
+    <ellipse class="art-bowl-rim" cx="120" cy="70" rx="62" ry="18"/>
+    <ellipse class="art-soup" cx="120" cy="70" rx="52" ry="12"/>
+    <g class="art-garnish"><path d="M95 68c9-8 17-7 23 1-9 6-17 6-23-1Z"/><circle cx="139" cy="70" r="5"/><circle cx="127" cy="65" r="3"/></g>
+    <path class="art-steam" d="M94 46c-11-12 10-14 1-29m28 29c-11-12 10-14 1-29m28 29c-11-12 10-14 1-29"/>` + commonEnd;
+  if (category === "drink") return commonStart + `
+    <path class="art-glass" d="M83 35h75l-9 84H92L83 35Z"/>
+    <path class="art-drink" d="M89 63h63l-6 50H96l-7-50Z"/>
+    <path class="art-straw" d="m128 66 17-49 19 4"/>
+    <circle class="art-citrus" cx="154" cy="45" r="19"/>
+    <circle class="art-citrus-inner" cx="154" cy="45" r="13"/>
+    <path class="art-citrus-lines" d="M154 32v26m-13-13h26m-22-9 18 18m0-18-18 18"/>
+    <g class="art-bubbles"><circle cx="109" cy="79" r="3"/><circle cx="128" cy="91" r="4"/><circle cx="116" cy="103" r="2"/></g>` + commonEnd;
+  return commonStart + `
+    <path class="art-bowl" d="M60 66h120c-5 39-24 57-60 57S65 105 60 66Z"/>
+    <ellipse class="art-bowl-rim" cx="120" cy="66" rx="60" ry="17"/>
+    <path class="art-steam" d="M98 43c-10-11 9-13 1-27m42 27c-10-11 9-13 1-27"/>` + commonEnd;
+}
+
+function renderDishCard(dish, reason, primary, layout = "recommendation") {
   const cat = categoryOf(dish);
   const selected = state.cart.has(dish.dishNumber);
   const item = state.cart.get(dish.dishNumber) || { qty: 1 };
 
   const card = document.createElement("div");
-  card.className = "dish-card" + (primary ? " primary" : "") + (selected ? " is-selected" : "");
+  const isMenuCard = layout === "menu";
+  card.className = "dish-card" + (isMenuCard ? " menu-dish-card" : "") + (primary ? " primary" : "") + (selected ? " is-selected" : "");
   card.dataset.dishNumber = dish.dishNumber; // 供跨页同步勾选状态用
   card.innerHTML = `
-    <div class="dish-category-row">
+    ${isMenuCard ? `<div class="dish-visual is-${cat.key}">${menuDishArtwork(cat.key, dish.dishNumber)}<span class="dish-visual-label">${cat.label}</span><span class="dish-selected-mark"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>已选</span></div>` : `<div class="dish-category-row">
       <span class="dish-category-symbol is-${cat.key}" aria-hidden="true"><svg class="icon"><use href="#i-${cat.icon}"/></svg></span>
       <span class="dish-category-label">${cat.label}</span>
       ${primary ? '<span class="primary-badge">为你主推</span>' : ""}
-    </div>
+    </div>`}
     <div class="dish-body">
       <div class="dish-head">
         <h2 class="dish-name">${esc(dish.dishName)}</h2>
@@ -631,7 +668,7 @@ function renderMenu() {
       $("#menuSearch").focus();
     });
   }
-  filtered.slice((pageNum - 1) * pageSize, pageNum * pageSize).forEach((dish) => box.appendChild(renderDishCard(dish, dish.dishIntroduction, false)));
+  filtered.slice((pageNum - 1) * pageSize, pageNum * pageSize).forEach((dish) => box.appendChild(renderDishCard(dish, dish.dishIntroduction, false, "menu")));
   refreshCartUI();
   $("#menuPageInfo").textContent = `${pageNum} / ${totalPages}`;
   $("#menuPrev").disabled = pageNum <= 1;

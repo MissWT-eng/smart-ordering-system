@@ -6,7 +6,7 @@
   <title>智能点餐 · 今天吃点什么</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="agent.css?v=20261103-2" />
-  <link rel="stylesheet" href="content.css?v=20261026-1" />
+  <link rel="stylesheet" href="content.css?v=20261116-menu-1" />
 </head>
 <body>
 
@@ -243,9 +243,9 @@
 
     <!-- ===== 页面：浏览菜单 ===== -->
     <section id="page-menu" class="page" aria-labelledby="menuTitle">
-      <header class="content-heading">
-        <div><p class="content-eyebrow">THE MENU · 随心挑选</p><h1 id="menuTitle">今天，想吃点什么？</h1><p class="content-heading-note">从一道喜欢的菜开始，慢慢选出这一餐。</p></div>
-        <button class="sidebar-menu-link" type="button" data-go-page="agent"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>让 AI 帮我选</button>
+      <header class="content-heading menu-heading">
+        <div><p class="content-eyebrow">今日菜单 · 随心挑选</p><h1 id="menuTitle">挑几道喜欢的，<span class="menu-title-accent">好好吃一顿。</span></h1><p class="content-heading-note">热菜、清爽时蔬与一碗暖汤，把这一餐搭配成喜欢的样子。</p></div>
+        <button class="sidebar-menu-link menu-ai-link" type="button" data-go-page="agent"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg><span>不知道吃什么？<b>让 AI 帮我选</b></span><svg class="icon menu-ai-arrow" aria-hidden="true"><use href="#i-arrow"/></svg></button>
       </header>
       <div class="menu-discovery">
         <div class="menu-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><label class="sr-only" for="menuSearch">搜索菜名或口味</label><input id="menuSearch" type="search" maxlength="80" autocomplete="off" placeholder="搜一道想吃的菜，或一种喜欢的味道" /><button id="clearMenuSearch" type="button" class="hidden" aria-label="清空搜索"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
@@ -316,7 +316,7 @@
   <div id="loginModal" class="modal-mask hidden">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle">
       <h3 id="loginModalTitle">手机号登录 / 注册</h3>
-      <p class="modal-sub">首次使用会自动创建账号</p>
+      <p class="modal-sub">首次使用会自动创建账号 · 演示环境不发送验证码</p>
       <input id="loginPhone" class="text-input" type="tel" maxlength="11" placeholder="手机号（11位）" />
       <input id="loginNick" class="text-input" type="text" maxlength="20" placeholder="昵称（可选）" />
       <div class="modal-footer">
