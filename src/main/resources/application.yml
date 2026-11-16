@@ -92,3 +92,5 @@ speech:
     model: cosyvoice-v3-flash
     voice: longanhuan
 
+ratelimit:
+  chat-per-day: 30

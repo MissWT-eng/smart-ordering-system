@@ -12,7 +12,7 @@ public class WebConfig implements WebMvcConfigurer {
 
     private final AuthInterceptor authInterceptor;
     private final AdminInterceptor adminInterceptor;
-
+    private final RateLimitInterceptor rateLimitInterceptor;
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
@@ -50,6 +50,11 @@ public class WebConfig implements WebMvcConfigurer {
                         "/order-drafts/*/revisions",
                         "/order-drafts/*/order"
                 );
+
+        //限流拦截器
+        registry.addInterceptor(rateLimitInterceptor)
+        .addPathPatterns("/agent/chat", "/agent/chat/stream");
+
     }
 
 
