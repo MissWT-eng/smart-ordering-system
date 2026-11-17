@@ -2,11 +2,15 @@
 
 [![Build and frontend checks](https://github.com/MissWT-eng/smart-ordering-system/actions/workflows/ci.yml/badge.svg)](https://github.com/MissWT-eng/smart-ordering-system/actions/workflows/ci.yml)
 
-基于 **Java 17、Spring Boot 4、LangChain4j 和 DeepSeek** 的点餐助手。顾客通过文字或录音描述需求，Agent 检索菜品并调用业务工具；后端按真实价格核算草稿，用户确认后创建订单，完成的回复支持按需朗读。
+基于 **Java 17、Spring Boot 4、LangChain4j 和 DeepSeek** 的点餐助手。顾客用自然语言描述口味、人数和预算，Agent 检索菜品并调用业务工具；后端按真实价格核算草稿，用户确认后创建订单。
+
+> **在线体验**：<http://38.76.195.153> —— Docker 部署，可直接试用（每 IP 每日 30 次对话配额）
+
+> 语音能力（阿里云 ASR/TTS）已接入并在本地环境验证可用。当前演示环境未购买域名、不支持 HTTPS，浏览器在 HTTP 页面下不授予麦克风权限，该模块暂未开放，接入域名后即可恢复。
 
 项目保留 V1 的菜单、推荐、订单和反馈接口，V2 在现有 Service 之上增加工具调用与草稿确认流程。
 
-> **当前进度（2026-11-03）**：M2 核心点餐与记忆流程已完成分阶段验收。近期新增中断后的订单结果核实、可信身份参与评分重排、60 道演示菜品，以及阿里云语音输入和龙安欢按需朗读。朗读已完成真实前后端联调，语音输入已通过浏览器 WebM 编码与真实云端识别验证；真人麦克风完整体验仍单独确认。待办与验收范围见[阶段清单](docs/m2-refinement-todo.md)。
+> **当前进度（2026-11-17）**：M1/M2 核心流程已完成分阶段验收，并完成容器化部署上线。近期新增三路召回（语义 / 热销 / 复购）与预算内配餐算法、按 IP 的对话限流、Docker Compose 四服务部署。待办与验收范围见[阶段清单](docs/m2-refinement-todo.md)。
 
 项目重点是把模型工具调用落到可核验的业务流程：**身份来自后端，价格来自数据库，订单以真实回执为准**。当前为单门店、单实例演示项目，真实支付、商户运营 Agent、多实例共享记忆尚未接入。
 
@@ -57,6 +61,7 @@
 | 语音服务 | 阿里云百炼：`qwen3-asr-flash`、`cosyvoice-v3-flash` / `longanhuan` | 录音识别为可编辑文字；首次点击合成朗读，页面内重播复用音频 |
 | 对象映射与校验 | MapStruct 1.6.3、Lombok、Jakarta Validation | DTO 映射、参数约束 |
 | 前端 | 原生 HTML / CSS / JavaScript、ES Modules、MediaRecorder / Audio | SSE 聊天、报价编辑、订单核实、画像管理、录音与朗读；保留 V1 入口 |
+| 部署与运维 | Docker、Docker Compose、Caddy（预留） | 四服务编排、日志轮转、端口收敛、按 IP 限流 |
 
 ## 已实现的功能
 
@@ -189,6 +194,8 @@ flowchart TD
 
 ### M2：语音输入与按需朗读
 
+> 该模块依赖麦克风权限，仅在 HTTPS 或 localhost 下可用。当前演示环境为 HTTP，入口未开放；功能实现与本地验证情况见本节。
+
 - **语音输入**：登录后录音，最长 60 秒、最大 5MiB。WebM/Opus 或 Ogg 上传后识别为可编辑文字，用户检查并手动发送；识别期间修改了原文时，结果单独保留，不覆盖输入、不自动提交。
 - **资源清理**：取消、设备异常、账号或会话变化会释放麦克风并丢弃迟到结果；浏览器权限不可用时仍可打字。
 - **回复朗读**：只为完成的回复提供朗读，首次点击调用 `cosyvoice-v3-flash + longanhuan`，音频下载为页面内 Blob 后支持停止和重播。开始录音会停止播放或取消合成等待。
@@ -211,11 +218,12 @@ flowchart TD
 | 并发与容量 | 两种入口共享 4 个在途许可；本机缓存会话默认上限 100，空闲过期清理归还名额，受控与真实 HTTP 验收通过 |
 | Agent 前端 | 默认 AI 点餐页已接入；新版真实页面多轮调整、报价、明确下单及画像闭环通过，V1 入口继续保留 |
 | Agent 个性化推荐 | 长期口味默认上下文与可信用户身份已接通；本人历史评分参与候选重排，改分规则及相似菜品泛化待完善 |
-| 推荐输出规范 | 报价边界的两个真实样例回归通过；请求 2～3 道菜时仍出现列出 4 道的数量偏差，待优化 |
+| 推荐输出规范 | 预算边界样例回归通过；请求 2～3 道菜曾出现列出 4 道的数量偏差，已通过配餐算法（荤素汤配额 + 贪心预算累计 + 缺位补位）修正 |
 | 天气工具与共享缓存 | 独立工具、门店城市天气与 300 秒 Redis 缓存已验证；支持失败降级，命中不续期，保留真实观测时间 |
 | 报价编辑与续聊 | 数量调整、删除、重新核价、原子替换及新报价上下文已接通；中断后的订单结果核实首版已完成，换菜与刷新页面后的待核实状态恢复待做 |
-| 语音输入与回复朗读 | 两个接口与前端已接通，TTS 真实联调与首版听感已确认；ASR 真人麦克风体验及首播延迟优化保留后续 |
+| 语音输入与回复朗读 | 两个接口与前端已接通，TTS 真实联调与首版听感已确认；ASR 依赖 HTTPS 或 localhost 的麦克风权限，演示环境为 HTTP，入口未开放 |
 | 商户页面 | 仓库根目录提供界面原型，尚未接入后端 |
+| 容器化部署 | Docker Compose 四服务（应用 / MySQL / Redis / Qdrant）已部署上线；配置外置、日志轮转、按 IP 日配额限流已验证，多实例与自动扩缩容未做 |
 | 支付、取消、历史查询工具 | Agent 尚未提供这些工具；订单管理接口与真实支付接入是不同能力 |
 
 后续任务见 [项目待办](docs/TODO.md)，阶段规划见 [V2 需求文档](docs/v2-requirements.md)。
@@ -363,6 +371,43 @@ flowchart TD
 独立测试、隔离浏览器和真实云端/数据库检查分别记录。真人麦克风完整页面链路尚待单独确认；首播延迟待分阶段测量。完整故障恢复、全面 V1 回归、真实进程重启演练和多实例运行不在已完成范围内，当前不作为生产部署保证。
 
 [GitHub Actions](https://github.com/MissWT-eng/smart-ordering-system/actions/workflows/ci.yml) 在推送、PR 或手动触发时运行35项隔离Java测试、45项前端单元测试和脚本语法检查，不需要数据库、Redis、Qdrant或模型密钥。浏览器回归与真实云端联调仍按阶段记录单独执行。
+
+## 在线部署
+
+演示环境以 Docker Compose 部署在单台 2 核 4G 云服务器上，四个容器：应用、MySQL 8、Redis 7、Qdrant。
+
+```bash
+# 服务器上，项目位于 /opt/smart-ordering
+cp .env.example .env      # 填入数据库密码与各服务密钥
+docker compose up -d --build
+```
+
+部署要点：
+
+- **配置全部外置**：数据库地址、Redis / Qdrant 主机、各服务密钥均走环境变量，代码内无硬编码；`.env` 已在 `.gitignore` 中，仓库只保留 `.env.example` 模板
+- **数据自动初始化**：MySQL 首次启动时执行 `deploy/init.sql`（建库建表 + 基础数据）
+- **端口收敛**：仅应用端口对外，MySQL / Redis / Qdrant 只绑定本机回环，外网不可直连
+- **日志轮转**：按 50m × 3 轮转，长期运行不会撑满磁盘
+- **对话限流**：`/agent/chat` 与 `/agent/chat/stream` 按 IP + 日期计数，超出配额返回 429，避免公开演示被刷爆模型额度；Redis 异常时限流放行，不让它成为单点故障
+
+**首次部署需手动创建 Qdrant 集合**（集合不会随应用启动自动创建，否则推荐接口会报 `Collection 'dish' doesn't exist`）：
+
+```bash
+curl -X PUT http://127.0.0.1:6333/collections/dish \
+  -H "Content-Type: application/json" \
+  -d '{"vectors":{"size":1024,"distance":"Cosine"}}'
+
+curl -X POST http://<你的地址>/admin/dishes/vector/resync \
+  -H "X-Admin-Token: $ADMIN_TOKEN"
+```
+
+代码更新后的发布流程（只重建应用容器，数据库与向量库不受影响）：
+
+```bash
+mvn package -DskipTests
+scp target/*.jar root@<host>:/opt/smart-ordering/target/
+ssh root@<host> "cd /opt/smart-ordering && docker compose up -d --build app"
+```
 
 ## 本地运行
 
